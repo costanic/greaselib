@@ -342,32 +342,27 @@ int main() {
 		fprintf(stderr, "Error printWork thread\n");
 	}
 
-//	printf("Will shutdown in %d seconds\n",WAITSECS);
-
 	printf("Gonna exec a command in 5 seconds\n");
 	sleep(10);
 	printf("\nexec ls -al\n");
 	char *args[4];
 
 	args[0] = "/bin/ls";
-	args[1] = "-al";//"test-re.cc";
+	args[1] = "-al";
 	args[2] = NULL;
 	createChild("/bin/ls",args,NULL,NULL);
 
 	sleep(1);
 
+#if 0
 	args[0] = "/home/ed/work/gostuff/bin/devicedb";
 	args[1] = "start";
-	args[2] = "-conf=/home/ed/work/gostuff/config.yaml";//"test-re.cc";
+	args[2] = "-conf=/home/ed/work/gostuff/config.yaml";
 	args[3] = NULL;
 	createChild("/home/ed/work/gostuff/bin/devicedb",args,NULL,NULL);
-
+#endif
+	printf("sleep over\n");
+	GreaseLib_shutdown(NULL);
 	GreaseLib_waitOnGreaseShutdown();
-	//	sleep(WAITSECS);
-//
-//	printf("sleep over\n");
-//
-//	GreaseLib_shutdown(NULL);
-
 }
 ;
