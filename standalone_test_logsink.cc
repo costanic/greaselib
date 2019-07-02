@@ -64,7 +64,6 @@ void *printWork(void *d) {
 		} else {
 			printf("OOOPS. Overflow on test output. size was %lu %d\n",buf->size, buf->_id);
 		}
-		//	sleep(1);
 		GreaseLib_cleanup_GreaseLibBuf(buf);  // comment out to test overrun if Buffers are not being taken
 	}
 	return NULL;
@@ -191,29 +190,24 @@ int createChild(const char* szCommand, char* const aArguments[], char* const aEn
 	if (0 == nChild) {
 		// child continues here
 
-		// redirect stdin
-
-		//    if (dup2(aStdinPipe[PIPE_READ], STDIN_FILENO) == -1) {
-		//      perror("redirecting stdin");
-		//      return -1;
-		//    }
+		// all these are for use by parent only
+		close(aStdinPipe[PIPE_READ]);
+		close(aStdinPipe[PIPE_WRITE]);
+		close(aStdoutPipe[PIPE_READ]);
 
 		// redirect stdout
 		if (dup2(aStdoutPipe[PIPE_WRITE], STDOUT_FILENO) == -1) {
 			perror("redirecting stdout");
+			close(aStdoutPipe[PIPE_WRITE]);
 			return -1;
 		}
 
 		// redirect stderr
 		if (dup2(aStdoutPipe[PIPE_WRITE], STDERR_FILENO) == -1) {
 			perror("redirecting stderr");
+			close(aStdoutPipe[PIPE_WRITE]);
 			return -1;
 		}
-
-		// all these are for use by parent only
-		close(aStdinPipe[PIPE_READ]);
-		close(aStdinPipe[PIPE_WRITE]);
-		close(aStdoutPipe[PIPE_READ]);
 		close(aStdoutPipe[PIPE_WRITE]);
 
 		// run child process image
@@ -233,8 +227,6 @@ int createChild(const char* szCommand, char* const aArguments[], char* const aEn
 
 		// we aren't going to send stdin to it, so...
 		close(aStdinPipe[PIPE_WRITE]);
-
-
 
 		// Include error check here
 		//    if (NULL != szMessage) {
