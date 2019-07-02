@@ -1,26 +1,26 @@
 /*
-    MIT License
+   MIT License
 
-    Copyright (c) 2018 WigWag Inc.
+   Copyright (c) 2018 WigWag Inc.
 
-    Permission is hereby granted, free of charge, to any person obtaining a copy
-    of this software and associated documentation files (the "Software"), to deal
-    in the Software without restriction, including without limitation the rights
-    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-    copies of the Software, and to permit persons to whom the Software is
-    furnished to do so, subject to the following conditions:
+   Permission is hereby granted, free of charge, to any person obtaining a copy
+   of this software and associated documentation files (the "Software"), to deal
+   in the Software without restriction, including without limitation the rights
+   to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+   copies of the Software, and to permit persons to whom the Software is
+   furnished to do so, subject to the following conditions:
 
-    The above copyright notice and this permission notice shall be included in all
-    copies or substantial portions of the Software.
+   The above copyright notice and this permission notice shall be included in all
+   copies or substantial portions of the Software.
 
-    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-    OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-    SOFTWARE.
-*/
+   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+   IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+   FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+   AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+   LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+   SOFTWARE.
+   */
 
 #include <stdio.h>
 #include <sys/wait.h>
@@ -64,7 +64,7 @@ void *printWork(void *d) {
 		} else {
 			printf("OOOPS. Overflow on test output. size was %lu %d\n",buf->size, buf->_id);
 		}
-	//	sleep(1);
+		//	sleep(1);
 		GreaseLib_cleanup_GreaseLibBuf(buf);  // comment out to test overrun if Buffers are not being taken
 	}
 	return NULL;
@@ -79,15 +79,15 @@ void targetCallback(GreaseLibError *err, void *d, uint32_t targetId) {
 		printf("OOPS - ran out of room in queue to printout\n");
 	}
 
-//	GreaseLibBuf *buf = (GreaseLibBuf *)d;
-//	if(buf->size < 5127) {
-//		memcpy(output_buf,buf->data,buf->size);
-//		*(buf->data+buf->size+1) = '\0';
-//		printf("CALLBACK TARGET>>>>>>>>>%s<<<<<<<<<<<<<<<<\n",output_buf);
-//	} else {
-//		printf("OOOPS. Overflow on test output. size was %lu\n",buf->size);
-//	}
-//	GreaseLib_cleanup_GreaseLibBuf(buf);
+	//	GreaseLibBuf *buf = (GreaseLibBuf *)d;
+	//	if(buf->size < 5127) {
+	//		memcpy(output_buf,buf->data,buf->size);
+	//		*(buf->data+buf->size+1) = '\0';
+	//		printf("CALLBACK TARGET>>>>>>>>>%s<<<<<<<<<<<<<<<<\n",output_buf);
+	//	} else {
+	//		printf("OOOPS. Overflow on test output. size was %lu\n",buf->size);
+	//	}
+	//	GreaseLib_cleanup_GreaseLibBuf(buf);
 }
 
 #define FILE_TARG_OPTID 98
@@ -165,99 +165,99 @@ void childClosedFDCallback (GreaseLibError *err, int stream_type, int fd) {
 }
 
 int createChild(const char* szCommand, char* const aArguments[], char* const aEnvironment[], const char* szMessage) {
-  int aStdinPipe[2];
-  int aStdoutPipe[2];
-  int nChild;
-  char nChar;
-  int nResult;
+	int aStdinPipe[2];
+	int aStdoutPipe[2];
+	int nChild;
+	char nChar;
+	int nResult;
 
-  if (pipe(aStdinPipe) < 0) {
-    perror("allocating pipe for child input redirect");
-    return -1;
-  }
-  if (pipe(aStdoutPipe) < 0) {
-    close(aStdinPipe[PIPE_READ]);
-    close(aStdinPipe[PIPE_WRITE]);
-    perror("allocating pipe for child output redirect");
-    return -1;
-  }
+	if (pipe(aStdinPipe) < 0) {
+		perror("allocating pipe for child input redirect");
+		return -1;
+	}
+	if (pipe(aStdoutPipe) < 0) {
+		close(aStdinPipe[PIPE_READ]);
+		close(aStdinPipe[PIPE_WRITE]);
+		perror("allocating pipe for child output redirect");
+		return -1;
+	}
 
-  GreaseLib_addOriginLabel( childStartingOriginID, szCommand, strlen(szCommand) );
-  GreaseLib_addFDForStdout( aStdoutPipe[PIPE_READ], childStartingOriginID, childClosedFDCallback );
-  childStartingOriginID++;
-
-
-  nChild = fork();
-  if (0 == nChild) {
-    // child continues here
-
-    // redirect stdin
-
-//    if (dup2(aStdinPipe[PIPE_READ], STDIN_FILENO) == -1) {
-//      perror("redirecting stdin");
-//      return -1;
-//    }
-
-    // redirect stdout
-    if (dup2(aStdoutPipe[PIPE_WRITE], STDOUT_FILENO) == -1) {
-      perror("redirecting stdout");
-      return -1;
-    }
-
-    // redirect stderr
-    if (dup2(aStdoutPipe[PIPE_WRITE], STDERR_FILENO) == -1) {
-      perror("redirecting stderr");
-      return -1;
-    }
-
-    // all these are for use by parent only
-    close(aStdinPipe[PIPE_READ]);
-    close(aStdinPipe[PIPE_WRITE]);
-    close(aStdoutPipe[PIPE_READ]);
-    close(aStdoutPipe[PIPE_WRITE]);
-
-    // run child process image
-    // replace this with any exec* function find easier to use ("man exec")
-    nResult = execve(szCommand, aArguments, aEnvironment);
-
-    // if we get here at all, an error occurred, but we are in the child
-    // process, so just exit
-    perror("exec of the child process");
-    exit(nResult);
-  } else if (nChild > 0) {
-    // parent continues here
-
-    // close unused file descriptors, these are for child only
-    close(aStdinPipe[PIPE_READ]);
-    close(aStdoutPipe[PIPE_WRITE]);
-
-    // we aren't going to send stdin to it, so...
-    close(aStdinPipe[PIPE_WRITE]);
+	GreaseLib_addOriginLabel( childStartingOriginID, szCommand, strlen(szCommand) );
+	GreaseLib_addFDForStdout( aStdoutPipe[PIPE_READ], childStartingOriginID, childClosedFDCallback );
+	childStartingOriginID++;
 
 
+	nChild = fork();
+	if (0 == nChild) {
+		// child continues here
 
-    // Include error check here
-//    if (NULL != szMessage) {
-//      write(aStdinPipe[PIPE_WRITE], szMessage, strlen(szMessage));
-//    }
+		// redirect stdin
 
-    // Just a char by char read here, you can change it accordingly
-//    while (read(aStdoutPipe[PIPE_READ], &nChar, 1) == 1) {
-//      write(STDOUT_FILENO, &nChar, 1);
-//    }
-//
-//    // done with these in this example program, you would normally keep these
-//    // open of course as long as you want to talk to the child
-//    close(aStdinPipe[PIPE_WRITE]);
-//    close(aStdoutPipe[PIPE_READ]);
-  } else {
-    // failed to create child
-    close(aStdinPipe[PIPE_READ]);
-    close(aStdinPipe[PIPE_WRITE]);
-    close(aStdoutPipe[PIPE_READ]);
-    close(aStdoutPipe[PIPE_WRITE]);
-  }
-  return nChild;
+		//    if (dup2(aStdinPipe[PIPE_READ], STDIN_FILENO) == -1) {
+		//      perror("redirecting stdin");
+		//      return -1;
+		//    }
+
+		// redirect stdout
+		if (dup2(aStdoutPipe[PIPE_WRITE], STDOUT_FILENO) == -1) {
+			perror("redirecting stdout");
+			return -1;
+		}
+
+		// redirect stderr
+		if (dup2(aStdoutPipe[PIPE_WRITE], STDERR_FILENO) == -1) {
+			perror("redirecting stderr");
+			return -1;
+		}
+
+		// all these are for use by parent only
+		close(aStdinPipe[PIPE_READ]);
+		close(aStdinPipe[PIPE_WRITE]);
+		close(aStdoutPipe[PIPE_READ]);
+		close(aStdoutPipe[PIPE_WRITE]);
+
+		// run child process image
+		// replace this with any exec* function find easier to use ("man exec")
+		nResult = execve(szCommand, aArguments, aEnvironment);
+
+		// if we get here at all, an error occurred, but we are in the child
+		// process, so just exit
+		perror("exec of the child process");
+		exit(nResult);
+	} else if (nChild > 0) {
+		// parent continues here
+
+		// close unused file descriptors, these are for child only
+		close(aStdinPipe[PIPE_READ]);
+		close(aStdoutPipe[PIPE_WRITE]);
+
+		// we aren't going to send stdin to it, so...
+		close(aStdinPipe[PIPE_WRITE]);
+
+
+
+		// Include error check here
+		//    if (NULL != szMessage) {
+		//      write(aStdinPipe[PIPE_WRITE], szMessage, strlen(szMessage));
+		//    }
+
+		// Just a char by char read here, you can change it accordingly
+		//    while (read(aStdoutPipe[PIPE_READ], &nChar, 1) == 1) {
+		//      write(STDOUT_FILENO, &nChar, 1);
+		//    }
+		//
+		//    // done with these in this example program, you would normally keep these
+		//    // open of course as long as you want to talk to the child
+		//    close(aStdinPipe[PIPE_WRITE]);
+		//    close(aStdoutPipe[PIPE_READ]);
+	} else {
+		// failed to create child
+		close(aStdinPipe[PIPE_READ]);
+		close(aStdinPipe[PIPE_WRITE]);
+		close(aStdoutPipe[PIPE_READ]);
+		close(aStdoutPipe[PIPE_WRITE]);
+	}
+	return nChild;
 }
 
 
@@ -272,12 +272,10 @@ int main() {
 	GreaseLib_setupStandardLevels();
 	GreaseLib_setupStandardTags();
 	// test setting up a sink
-
 	GreaseLibSink *sink = GreaseLib_new_GreaseLibSink(GREASE_LIB_SINK_UNIXDGRAM,"/tmp/testsocket");
 	GreaseLibSink *klog_sink = GreaseLib_new_GreaseLibSink(GREASE_LIB_SINK_KLOG2,NULL);
 
 	// setup a file destination
-
 	GreaseLibTargetOpts *target = GreaseLib_new_GreaseLibTargetOpts();
 
 	char outFile[] = "/tmp/output.log";
@@ -299,8 +297,6 @@ int main() {
 
 	// another target... will be ignored - since nothing if directed to it yet
 	GreaseLibTargetOpts *target2 = GreaseLib_new_GreaseLibTargetOpts();
-//	target2->file = outFile;
-//	target2->fileOpts = GreaseLib_new_GreaseLibTargetFileOpts();
 
 	target2->optsId = CALLBACK_TARG_OPTID;
 	target2->targetCB = targetCallback;
