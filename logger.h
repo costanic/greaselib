@@ -1835,14 +1835,8 @@ protected:
 
 		static void listener_work(void *self) {
 			KernelProcKmsgSink *sink = (KernelProcKmsgSink *) self;
-
 			fd_set readfds;
-
 			char dump[5];
-
-//			struct timeval timeout;
-//			timeout.tv_sec = 0;
-//			timeout.tv_usec = SINK_KLOG_TV_USEC_START; // 0.25 seconds
 			int buf_size = sink->kernbufsize;
 
 			if(!sink->valid) {
@@ -1850,32 +1844,44 @@ protected:
 				return;
 			}
 
-
-
+			// Allocate buffers
 			char *temp_buffer_entry = (char *) malloc(buf_size);
-			int remaining_to_parse = buf_size;
+			if (NULL == temp_buffer_entry) {
+				ERROR_OUT("KernelProcKmsg2Sink: malloc failed %s\n",KERNLOG_PATH);
+				// Cleaup for sink
+                                close(sink->wakeup_pipe[0]);
+                                close(sink->wakeup_pipe[1]);
+                                sink->ready = false;
+                                sink->valid = false;
+				return;
+			}
+
 			GreaseLogger::klog_parse_state parse_state = LEVEL_BEGIN;
-			char *buf_curpos = temp_buffer_entry;
 			FD_ZERO(&readfds);
 			FD_SET(sink->wakeup_pipe[PIPE_WAIT], &readfds);
+
 			int _errno = 0;
 			int kmsg_fd = open_kmsg(KERNLOG_PATH, _errno);
-			if(kmsg_fd > 0) {
-				FD_SET(kmsg_fd,&readfds);
-			} else {
+			if(kmsg_fd < 0) {
 				ERROR_OUT("KernelProcKmsg2Sink: FATAL for thread. Can't open %s\n",KERNLOG_PATH);
+				FD_CLR(sink->wakeup_pipe[PIPE_WAIT], &readfds);
 				close(sink->wakeup_pipe[0]);
 				close(sink->wakeup_pipe[1]);
 				sink->ready = false;
 				sink->valid = false;
+				free(temp_buffer_entry);
 				return;
+			} else {
+				FD_SET(kmsg_fd,&readfds);
 			}
+
+			int remaining_to_parse = buf_size;
+			char *buf_curpos = temp_buffer_entry;
 
 			int last_fd = kmsg_fd + 1;
 			if(sink->wakeup_pipe[PIPE_WAIT] > last_fd)
 				last_fd = sink->wakeup_pipe[PIPE_WAIT]+1;
 
-			//			FD_SET(sink->socket_fd, &readfds);
 			DECL_LOG_META(meta_klog, GREASE_TAG_KERNEL, GREASE_LEVEL_LOG, 0 ); // static meta struct we will use
 			int Z = 0;
 			int reads = 0;
@@ -2014,7 +2020,13 @@ protected:
 //					}
 //				}
 //			}
-
+                        FD_CLR(sink->wakeup_pipe[PIPE_WAIT], &readfds);
+                        FD_CLR(kmsg_fd, &readfds);
+                        close(sink->wakeup_pipe[0]);
+                        close(sink->wakeup_pipe[1]);
+                        close(kmsg_fd);
+                        sink->ready = false;
+                        sink->valid = false;
 			free(temp_buffer_entry);
 		}
 
