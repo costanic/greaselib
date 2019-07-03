@@ -1439,7 +1439,7 @@ protected:
 //										// we figure out the log time here, via strptime() - but honestly, its gonna be when it was sent - so don't bother
 //									}
 									pri = LOG_PRI(fac_pri);
-									if( pri < 8) {
+									if( fac_pri < 8) {
 										meta_syslog.level = GREASE_SYSLOGPRI_TO_LEVEL_MAP[pri];
 									} else {
 										meta_syslog.level = GREASE_LEVEL_LOG;
