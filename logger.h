@@ -1331,9 +1331,13 @@ protected:
 
 			// discover socket max recieve size (this will be the max for a non-fragmented log message
 			int rcv_buf_size = 65536;
-			setsockopt(sink->socket_fd, SOL_SOCKET, SO_RCVBUF, &rcv_buf_size, (unsigned int) sizeof(int));
+			if (setsockopt(sink->socket_fd, SOL_SOCKET, SO_RCVBUF, &rcv_buf_size, (unsigned int) sizeof(int)) < 0) {
+				ERROR_PERROR("UnixDgramSink: Error setsockopt rcv_buf_size \n", errno);
+			}
 
-			getsockopt(sink->socket_fd, SOL_SOCKET, SO_RCVBUF, &rcv_buf_size, &optsize);
+			if (getsockopt(sink->socket_fd, SOL_SOCKET, SO_RCVBUF, &rcv_buf_size, &optsize) < 0) {
+				ERROR_PERROR("UnixDgramSink: Error getsockopt rcv_buf_size\n", errno);
+			}
 			// http://stackoverflow.com/questions/10063497/why-changing-value-of-so-rcvbuf-doesnt-work
 			if(rcv_buf_size < 100) {
 				ERROR_OUT("SyslogDgramSink: Failed to start reader thread - SO_RCVBUF too small\n");
