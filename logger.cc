@@ -457,7 +457,6 @@ void GreaseLogger::mainThread(void *p) {
 }
 
 int GreaseLogger::log(const logMeta &f, const char *s, int len) { // does the work of logging
-//	FilterList *list = NULL;
 	if(len > GREASE_MAX_MESSAGE_SIZE)
 		return GREASE_OVERFLOW;
 	logMeta m = f;
@@ -468,14 +467,9 @@ int GreaseLogger::log(const logMeta &f, const char *s, int len) { // does the wo
 }
 
 int GreaseLogger::logP(logMeta *f, const char *s, int len) { // does the work of logging
-//	FilterList *list = NULL;
 
 	if(len > GREASE_MAX_MESSAGE_SIZE)
 		return GREASE_OVERFLOW;
-//	logMeta m = *f;
-//
-//	DBG_OUT("  log() have origin %d\n",f->origin);
-//
 	if(sift(*f)) {
 		return _log((*f),s,len);
 	} else
