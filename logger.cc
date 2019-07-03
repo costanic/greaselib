@@ -1901,7 +1901,7 @@ bool GreaseLogger::parse_single_klog_to_singleLog(char *start, int &remain, klog
 		begin_state = LEVEL_BEGIN; // on the next call, move to next log entry
 		entry->meta.m.tag = GREASE_TAG_KERNEL;
 		entry->meta.m.origin = 0;
-		if((look - cap) > 0) {
+		if((look - cap) > 0 && cap) {
 			// actually log stuff with some length
 			if((look - cap - 1) > entry->buf.handle.len) {
 				// its too big... (should probably never happen)
@@ -1921,7 +1921,6 @@ bool GreaseLogger::parse_single_klog_to_singleLog(char *start, int &remain, klog
 		begin_state = state;
 		return false;
 	}
-
 }
 
 
