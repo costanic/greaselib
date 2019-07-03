@@ -641,7 +641,9 @@ void GreaseLogger::targetReady(bool ready, _errcmn::err_ev &err, logTarget *t) {
 			info->cb(t->owner,err,info);
 		}
 		// TODO shutdown?
+		if(t->myId == DEFAULT_TARGET && info) delete info;
 		delete t;
+		return;
 	}
 	if(t->myId == DEFAULT_TARGET && info) delete info;
 }
