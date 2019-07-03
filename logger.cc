@@ -2048,6 +2048,7 @@ int GreaseLogger::_grabInLogBuffer(singleLog* &buf) {
 int GreaseLogger::_returnBuffer(singleLog *buf) {
 	buf->clear();
 	masterBufferAvail.add(buf);
+	return GREASE_OK;
 }
 
 int GreaseLogger::_submitBuffer(singleLog *buf) {
