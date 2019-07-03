@@ -310,9 +310,11 @@ int main() {
 
 	if((ret = GreaseLib_addSink(sink)) != GREASE_LIB_OK) {
 		printf("ERROR on addSink(): %d",ret);
+		GreaseLib_cleanup_GreaseLibSink(sink);
 	}
 	if((ret = GreaseLib_addSink(klog_sink)) != GREASE_LIB_OK) {
 		printf("ERROR on addSink() - klog: %d",ret);
+		GreaseLib_cleanup_GreaseLibSink(klog_sink);
 	}
 	printf("after setup sink\n");
 
@@ -321,6 +323,7 @@ int main() {
 
 	if((ret = GreaseLib_addSink(sink2)) != GREASE_LIB_OK) {
 		printf("ERROR on addSink(): %d",ret);
+		GreaseLib_cleanup_GreaseLibSink(sink2);
 	}
 	printf("after setup sink\n");
 
@@ -349,6 +352,9 @@ int main() {
 	args[3] = NULL;
 	createChild("/home/ed/work/gostuff/bin/devicedb",args,NULL,NULL);
 #endif
+	GreaseLib_cleanup_GreaseLibSink(sink);
+	GreaseLib_cleanup_GreaseLibSink(klog_sink);
+	GreaseLib_cleanup_GreaseLibSink(sink2);
 	printf("sleep over\n");
 	GreaseLib_shutdown(NULL);
 	GreaseLib_waitOnGreaseShutdown();
