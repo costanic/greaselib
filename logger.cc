@@ -1961,7 +1961,7 @@ bool GreaseLogger::parse_single_devklog_to_singleLog(char *start, int &remain, k
 							else if (*cap == '1')
 								klog_level = *(cap+1) - '0' + 10;
 							else
-								klog_level = 20;
+								klog_level = 19;  // Max log level can be 19
 
 							if (klog_level < 20 && klog_level >= 0) {
 								// valid level
