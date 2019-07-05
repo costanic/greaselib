@@ -4000,7 +4000,7 @@ protected:
 		}; // flush buffer 'n'. This is ansynchronous
 		void writeAsyncOverflow(overflowWriteOut *b,bool nocallbacks) override {
 			int n = 0;
-			if(b->N < 1) {
+			if(b && b->N < 1) {
 				delete b;
 				return;
 			}
