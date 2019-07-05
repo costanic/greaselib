@@ -3967,7 +3967,7 @@ protected:
 			post_cstor(buffer_size, id, o, flags, mode, path, readydata, cb);
 		}
 
-		~fileTat strget() {
+		~fileTarget() {
 			if (myPath) {
 				free(myPath);
 			}
