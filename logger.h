@@ -3967,6 +3967,12 @@ protected:
 			post_cstor(buffer_size, id, o, flags, mode, path, readydata, cb);
 		}
 
+		~fileTat strget() {
+			if (myPath) {
+				free(myPath);
+			}
+		}
+
 
 	};
 
@@ -3994,7 +4000,7 @@ protected:
 		}; // flush buffer 'n'. This is ansynchronous
 		void writeAsyncOverflow(overflowWriteOut *b,bool nocallbacks) override {
 			int n = 0;
-			if(b->N < 1) {
+			if(b && b->N < 1) {
 				delete b;
 				return;
 			}
