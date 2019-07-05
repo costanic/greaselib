@@ -513,6 +513,7 @@ int setup_sink_dgram_socket(const char *path, int opts) {
 		sink_fd = socket(AF_UNIX, SOCK_DGRAM, 0);
 		if(sink_fd < 0) {
 			perror("UnixDgramSink: Failed to create SOCK_DGRAM socket.\n");
+			return 1;
 		} else {
 			memset(&sink_dgram_addr,0,sizeof(sink_dgram_addr));
 			sink_dgram_addr.sun_family = AF_UNIX;
@@ -524,15 +525,18 @@ int setup_sink_dgram_socket(const char *path, int opts) {
 
 		// discover socket max recieve size (this will be the max for a non-fragmented log message
 		if (setsockopt(sink_fd, SOL_SOCKET, SO_RCVBUF, &send_buf_size, sizeof(int)) < 0) {
+			close(sink_fd);
 			perror("UnixDgramSink: Failed to set socket options.\n");
 		}
 
 		if (getsockopt(sink_fd, SOL_SOCKET, SO_RCVBUF, &send_buf_size, &optsize) < 0) {
+			close(sink_fd);
 			perror("UnixDgramSink: Failed to get socket options.\n");
 		}
 
 		// http://stackoverflow.com/questions/10063497/why-changing-value-of-so-rcvbuf-doesnt-work
 		if(send_buf_size < 100) {
+			close(sink_fd);
 			_GREASE_ERROR_PRINTF("UnixDgramSink: Failed to start reader thread - SO_RCVBUF too small\n");
 			return 1;
 		} else {
@@ -556,7 +560,6 @@ int setup_sink_dgram_socket(const char *path, int opts) {
 
 			iov[2].iov_base = NULL;
 			iov[2].iov_len = 0;
-
 
 			// check for alive logger on socket...
 			if(opts & SINK_NO_PING) {
