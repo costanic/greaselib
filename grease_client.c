@@ -480,8 +480,6 @@ int ping_sink() {
 			ret = 1;
 		}
 
-
-		unlink(clientpath); // get rid of it if it already exists
 		close(sink_fd_client);
 		rmdir(dir);
 
