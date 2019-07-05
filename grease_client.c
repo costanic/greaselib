@@ -540,9 +540,14 @@ int setup_sink_dgram_socket(const char *path, int opts) {
 		}
 
 		// discover socket max recieve size (this will be the max for a non-fragmented log message
-		setsockopt(sink_fd, SOL_SOCKET, SO_RCVBUF, &send_buf_size, sizeof(int));
+		if (setsockopt(sink_fd, SOL_SOCKET, SO_RCVBUF, &send_buf_size, sizeof(int)) < 0) {
+			perror("UnixDgramSink: Failed to set socket options.\n");
+		}
 
-		getsockopt(sink_fd, SOL_SOCKET, SO_RCVBUF, &send_buf_size, &optsize);
+		if (getsockopt(sink_fd, SOL_SOCKET, SO_RCVBUF, &send_buf_size, &optsize) < 0) {
+			perror("UnixDgramSink: Failed to get socket options.\n");
+		}
+
 		// http://stackoverflow.com/questions/10063497/why-changing-value-of-so-rcvbuf-doesnt-work
 		if(send_buf_size < 100) {
 			_GREASE_ERROR_PRINTF("UnixDgramSink: Failed to start reader thread - SO_RCVBUF too small\n");
