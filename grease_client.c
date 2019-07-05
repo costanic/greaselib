@@ -414,8 +414,6 @@ int check_grease_symbols() {
 
 int ping_sink() {
 	char temp_buf[GREASE_CLIENT_PING_SIZE];
-
-
 	int sink_fd_client = socket(AF_UNIX, SOCK_DGRAM, 0);
 	if(sink_fd_client < 0) {
 		perror("UnixDgramSink: Failed to create SOCK_DGRAM socket (for ping).\n");
@@ -447,7 +445,6 @@ int ping_sink() {
 		unlink(clientpath); // get rid of it if it already exists
 		if(bind(sink_fd_client, (const struct sockaddr *) &client_dgram_addr, sizeof(client_dgram_addr)) < 0) {
 			perror("UnixDgramSink: Failed to bind() SOCK_DGRAM socket. (ping)\n");
-			close(sink_fd_client);
 			ret = 1;
 		}
 
@@ -482,10 +479,10 @@ int ping_sink() {
 
 		close(sink_fd_client);
 		rmdir(dir);
-
 		return ret;
 
 	} else {
+		 close(sink_fd_client);
 		_GREASE_ERROR_PRINTF("Grease: trouble creating temp dir.");
 		return 1;
 	}
