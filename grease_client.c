@@ -380,48 +380,36 @@ int grease_logToSink(logMeta *f, const char *s, RawLogLen len) {
 
 
 #ifndef GREASE_IS_LOCAL
-
-
 static int
 grease_plhdr_callback(struct dl_phdr_info *info, size_t size, void *data)
 {
     char *found = NULL;
     found = strstr(info->dlpi_name,GREASE_LOG_SO_NAME);
-//    printf("so: %s\n", info->dlpi_name);
     if(found) {
     	_GREASE_DBG_PRINTF("Found greaseLog.node in running process\n");
     	// we know the path of the grease node module .so file, so
     	// open it for our own use...
     	void *lib = dlopen(info->dlpi_name, RTLD_LAZY);
     	if(lib) {
-        	void *r = dlsym(lib,"grease_logLocal");
+            void *r = dlsym(lib,"grease_logLocal");
             if(r) {
             	_GREASE_DBG_PRINTF("Found symbol for grease_logLocal\n");
             	local_log = r;
             	found_module = 1;
             } else {
-            	local_log = NULL;
+		dlclose(lib);
+		local_log = NULL;
             }
     	}
     }
-
-//    printf("name=%s (%d segments)\n", info->dlpi_name,
-//        info->dlpi_phnum);
-//
-//    for (j = 0; j < info->dlpi_phnum; j++)
-//         printf("\t\t header %2d: address=%10p\n", j,
-//             (void *) (info->dlpi_addr + info->dlpi_phdr[j].p_vaddr));
     return 0;
 }
-
-
 
 int check_grease_symbols() {
 	found_module = 0;
 	dl_iterate_phdr(grease_plhdr_callback, NULL);
 	return found_module;
 }
-
 #endif
 
 int ping_sink() {
