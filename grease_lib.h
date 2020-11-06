@@ -1,8 +1,20 @@
 /*
+ * GreaseLogger.h
+ *
+ * greaselib bindings
+ * launch the grease logging process via these library calls
+ *
+ *  Created on: Nov 23, 2016
+ *      Author: ed
+ * (c) 2016, WigWag Inc
+ */
+/*
     MIT License
 
-    Copyright (c) 2018 WigWag Inc.
+    Copyright (c) 2019, Arm Limited and affiliates.
 
+    SPDX-License-Identifier: MIT
+    
     Permission is hereby granted, free of charge, to any person obtaining a copy
     of this software and associated documentation files (the "Software"), to deal
     in the Software without restriction, including without limitation the rights
@@ -22,16 +34,6 @@
     SOFTWARE.
 */
 
-/*
- * GreaseLogger.h
- *
- * greaselib bindings
- * launch the grease logging process via these library calls
- *
- *  Created on: Nov 23, 2016
- *      Author: ed
- * (c) 2016, WigWag Inc
- */
 
 
 #ifndef GreaseLib_H_
@@ -75,6 +77,7 @@ typedef struct {
 	void *_shadow; // this is the original C++ GreaseLogger::lohBuf object, which we can't have a proper point to - so we just do this
 } GreaseLibBuf;
 
+void GreaseLib_getVersion(char *s, int len);
 void GreaseLib_init_GreaseLibBuf(GreaseLibBuf *b);
 GreaseLibBuf *GreaseLib_new_GreaseLibBuf(size_t l);
 void GreaseLib_cleanup_GreaseLibBuf(GreaseLibBuf *b); // should be called when the callback is done using the buffer it was handed
@@ -177,7 +180,7 @@ void GreaseLib_set_flag_GreaseLibTargetFileOpts(GreaseLibTargetFileOpts *opts,ui
 GreaseLibTargetOpts *GreaseLib_new_GreaseLibTargetOpts();
 GreaseLibTargetOpts *GreaseLib_init_GreaseLibTargetOpts(GreaseLibTargetOpts *);
 void GreaseLib_set_flag_GreaseLibTargetOpts(GreaseLibTargetOpts *opts,uint32_t flag);
-
+GreaseLibTargetOpts *GreaseLib_get_GreaseLibTargetOpts(GreaseLibTargetOpts *ret, uint32_t target_id);
 void GreaseLib_cleanup_GreaseLibTargetOpts(GreaseLibTargetOpts *opts);
 void GreaseLib_set_string_GreaseLibTargetFileOpts(GreaseLibTargetFileOpts *opts,uint32_t flag,const char *s);
 
@@ -222,9 +225,13 @@ GreaseLibFilter *GreaseLib_init_GreaseLibFilter(GreaseLibFilter *);
 void GreaseLib_cleanup_GreaseLibFilter(GreaseLibFilter *filter);
 void GreaseLib_setvalue_GreaseLibFilter(GreaseLibFilter *opts,uint32_t flag,uint32_t val);
 
+LIB_METHOD_SYNC(getFilters,GreaseLibFilter **ret);
 LIB_METHOD_SYNC(addFilter,GreaseLibFilter *filter);
 LIB_METHOD_SYNC(disableFilter,GreaseLibFilter *filter);
 LIB_METHOD_SYNC(enableFilter,GreaseLibFilter *filter);
+LIB_METHOD_SYNC(modifyFilter,GreaseLibFilter *filter);
+LIB_METHOD_SYNC(fillFilterId,GreaseLibFilter *filter);
+LIB_METHOD_SYNC(deleteFilter,GreaseLibFilter *filter);
 //LIB_METHOD_SYNC(modifyDefaultTarget,GreaseLibTargetOpts *opts);
 
 #define GREASE_LIB_SINK_UNIXDGRAM 0x1

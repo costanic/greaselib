@@ -1,8 +1,17 @@
 /*
+ * GreaseLogger.h
+ *
+ *  Created on: Aug 27, 2014
+ *      Author: ed
+ * (c) 2016, WigWag Inc
+ */
+/*
     MIT License
 
-    Copyright (c) 2018 WigWag Inc.
+    Copyright (c) 2019, Arm Limited and affiliates.
 
+    SPDX-License-Identifier: MIT
+    
     Permission is hereby granted, free of charge, to any person obtaining a copy
     of this software and associated documentation files (the "Software"), to deal
     in the Software without restriction, including without limitation the rights
@@ -22,13 +31,6 @@
     SOFTWARE.
 */
 
-/*
- * GreaseLogger.h
- *
- *  Created on: Aug 27, 2014
- *      Author: ed
- * (c) 2016, WigWag Inc
- */
 #ifndef GreaseLogger_H_
 #define GreaseLogger_H_
 
@@ -92,12 +94,7 @@ using namespace v8;
 
 #include <gperftools/tcmalloc.h>
 
-#include <re2/re2.h>
 #include <string>
-//#define PCRE2_CODE_UNIT_WIDTH 8
-//#include <pcre2.h>
-
-
 
 #define LMALLOC tc_malloc_skip_new_handler
 #define LCALLOC tc_calloc
@@ -227,7 +224,6 @@ struct uint64_t_eqstrP {
 
 //#define LOGGER_HEAVY_DEBUG 1
 #define MAX_IDENTICAL_FILTERS 16
-
 #ifdef LOGGER_HEAVY_DEBUG
 #pragma message "Build is Debug Heavy!!"
 // confused? here: https://gcc.gnu.org/onlinedocs/cpp/Variadic-Macros.html
@@ -787,6 +783,8 @@ protected:
 	public:
 		bool _disabled;
 		FilterId id;
+		OriginId origin;
+		TagId tag;
 		LevelMask levelMask;
 		TargetId targetId;
 		logLabel preFormat;
@@ -798,11 +796,13 @@ protected:
 			targetId = 0;
 			_disabled = false;
 		};
-		Filter(FilterId id, LevelMask mask, TargetId t) : _disabled(false), id(id), levelMask(mask), targetId(t), preFormat(), postFormatPreMsg(), postFormat() {}
+		Filter(FilterId id, OriginId origin, TagId tag, LevelMask mask, TargetId t) : _disabled(false), id(id), origin(origin), tag(tag), levelMask(mask), targetId(t), preFormat(), postFormatPreMsg(), postFormat() {}
 //		Filter(Filter &&o) : id(o.id), levelMask(o.mask), targetId(o.t) {};
-		Filter(Filter &o) :  _disabled(false), id(o.id), levelMask(o.levelMask), targetId(o.targetId) {};
+		Filter(Filter &o) :  _disabled(false), id(o.id), origin(o.origin), tag(o.tag), levelMask(o.levelMask), targetId(o.targetId) {};
 		Filter& operator=(Filter& o) {
 			id = o.id;
+			origin = o.origin;
+			tag = o.tag;
 			levelMask = o.levelMask;
 			targetId = o.targetId;
 			preFormat = o.preFormat;
@@ -838,6 +838,18 @@ protected:
 			bool ret = false;
 			for(int n=0;n<MAX_IDENTICAL_FILTERS;n++) {
 				if(list[n].id == lookup_id) {
+					filter = &list[n];
+					ret = true;
+					break;
+				}
+			}
+			return ret;
+		}
+
+		inline bool find(TargetId target_id, LevelMask level, Filter *&filter) {
+			bool ret = false;
+			for(int n=0;n<MAX_IDENTICAL_FILTERS;n++) {
+				if(list[n].targetId == target_id && list[n].levelMask == level) {
 					filter = &list[n];
 					ret = true;
 					break;
@@ -1101,130 +1113,6 @@ protected:
 
 	class SyslogDgramSink final : public Sink, virtual public heapBuf::heapBufManager  {
 	protected:
-//		TWlib::tw_safeCircular<heapBuf *, LoggerAlloc > buffers;
-//		struct UnixDgramClient {
-////			char temp[SINK_BUFFER_SIZE];
-//			enum _state {
-//				NEED_PREAMBLE,
-//				IN_PREAMBLE,
-//				IN_LOG_ENTRY    // have log_entry_size
-//			};
-//			int temp_used;
-//			int state_remain;
-//			int log_entry_size;
-//			_state state;
-//			uv_pipe_t client;
-//			UnixDgramSink *self;
-//			UnixDgramClient() = delete;
-//			UnixDgramClient(UnixDgramSink *_self) :
-//				temp_used(0),
-//				state_remain(GREASE_CLIENT_HEADER_SIZE),  // the initial state requires preamble + size(uint32_t)
-//				log_entry_size(0),
-//				state(NEED_PREAMBLE), self(_self) {
-//				uv_pipe_init(_self->loop, &client, 0);
-//				client.data = this;
-//			}
-//			void resetState() {
-//				state = NEED_PREAMBLE;
-//				state_remain = GREASE_CLIENT_HEADER_SIZE;
-//				temp_used = 0;
-//				log_entry_size = 0;
-//			}
-//			void close() {
-//
-//			}
-//			static void on_close(uv_handle_t *t) {
-//				PipeClient *c = (PipeClient *) t->data;
-//				delete c;
-//			}
-//			static void on_read(uv_stream_t* handle, ssize_t nread, uv_buf_t buf) {
-//				PipeClient *c = (PipeClient *) handle->data;
-//				if(nread == -1) {
-//					// time to shutdown - client left...
-//					uv_close((uv_handle_t *)&c->client, PipeClient::on_close);
-//					DBG_OUT("UnixDgramSink client disconnect.\n");
-//				} else {
-//					int walk = 0;
-//					while(walk < buf.len) {
-//						switch(c->state) {
-//							case NEED_PREAMBLE:
-//								if(buf.len >= GREASE_CLIENT_HEADER_SIZE) {
-//									if(IS_SINK_PREAMBLE(buf.base)) {
-//										c->state = IN_LOG_ENTRY;
-//										GET_SIZE_FROM_PREAMBLE(buf.base,c->log_entry_size);
-//									} else {
-//										DBG_OUT("PipeClient: Bad state. resetting.\n");
-//										c->resetState();
-//									}
-//									walk += GREASE_CLIENT_HEADER_SIZE;
-//								} else {
-//									c->state_remain = SIZEOF_SINK_LOG_PREAMBLE - buf.len;
-//									memcpy(c->temp+c->temp_used, buf.base+walk,buf.len);
-//									c->state = IN_PREAMBLE;
-//									walk += buf.len;
-//								}
-//								break;
-//							case IN_PREAMBLE:
-//							{
-//								int n = c->state_remain;
-//								if(buf.len < n) n = buf.len;
-//								memcpy(c->temp+c->temp_used,buf.base,n);
-//								walk += n;
-//								c->state_remain = c->state_remain - n;
-//								if(c->state_remain == 0) {
-//									if(IS_SINK_PREAMBLE(c->temp)) {
-//										GET_SIZE_FROM_PREAMBLE(c->temp,c->log_entry_size);
-//										c->temp_used = 0;
-//										c->state = IN_LOG_ENTRY;
-//									} else {
-//										DBG_OUT("PipeClient: Bad state. resetting.\n");
-//										c->resetState();
-//									}
-//								}
-//								break;
-//							}
-//							case IN_LOG_ENTRY:
-//							{
-//								if(c->temp_used == 0) { // we aren't using the buffer,
-//									if((buf.len - walk) >= GREASE_TOTAL_MSG_SIZE(c->log_entry_size)) { // let's see if we have everything already
-//										int r;
-//										if((r = c->self->owner->logFromRaw(buf.base,GREASE_TOTAL_MSG_SIZE(c->log_entry_size)))
-//												!= GREASE_OK) {
-//											ERROR_OUT("Grease logFromRaw failure: %d\n", r);
-//										}
-//										walk += c->log_entry_size;
-//										c->resetState();
-//									} else {
-//										memcpy(c->temp,buf.base+walk,buf.len-walk);
-//										c->temp_used = buf.len;
-//										walk += buf.len; // end loop
-//									}
-//								} else {
-//									int need = GREASE_TOTAL_MSG_SIZE(c->log_entry_size) - c->temp_used;
-//									if(need <= buf.len-walk) {
-//										memcpy(c->temp + c->temp_used,buf.base+walk,need);
-//										walk += need;
-//										c->temp_used += need;
-//										int r;
-//										if((r = c->self->owner->logFromRaw(c->temp,GREASE_TOTAL_MSG_SIZE(c->log_entry_size)))
-//												!= GREASE_OK) {
-//											ERROR_OUT("Grease logFromRaw failure (2): %d\n", r);
-//										}
-//										c->resetState();
-//									} else {
-//										memcpy(c->temp + c->temp_used,buf.base+walk,buf.len-walk);
-//										walk += buf.len-walk;
-//										c->temp_used += buf.len-walk;
-//									}
-//								}
-//								break;
-//							}
-//						}
-//					}
-//				}
-//			}
-//		};
-
 		uv_thread_t listener_thread;
 		char *path;
 
@@ -1346,7 +1234,7 @@ protected:
 			}
 
 			for(int n=0;n<nbuffers;n++) {
-				raw_buffer[n] = (char *) ::malloc(rcv_buf_size);
+				raw_buffer[n] = (char *) ::malloc(rcv_buf_size+1);
 			}
 
 			enum {
@@ -1364,14 +1252,15 @@ protected:
 			if(sink->wakeup_pipe[PIPE_WAIT] > n)
 				n = sink->wakeup_pipe[PIPE_WAIT]+1;
 
-			RE2 re_dissect_syslog(re_capture_syslog);
+			GreaseLogger *l = GreaseLogger::setupClass();
+			GreaseLogger::singleLog *entry = NULL;
 
 			int recv_cnt = 0;
 			int err_cnt = 0;
 			while(sink->ready && !sink->stop_thread) {
 				int err = select(n,&readfds,NULL,NULL,NULL); // block and wait...
 				if(err == -1) {
-					ERROR_PERROR("UnixDgramSink: error on select() \n", errno);
+					ERROR_PERROR("SyslogDgramSink: error on select() \n", errno);
 				} else if(err > 0) {
 					if(FD_ISSET(sink->wakeup_pipe[PIPE_WAIT], &readfds)) {
 						while(read(sink->wakeup_pipe[PIPE_WAIT], dump, 1) == 1) {}
@@ -1406,8 +1295,6 @@ protected:
 						// use setsockopt SO_PASSCRED to get the actual calling PID through a recvmsg() as an aux message
 						// This way you can determine the process ID which can be mapped to the origin label
 
-						char header_temp[GREASE_CLIENT_HEADER_SIZE];
-						int header_temp_walk = 0;
 						int temp_buffer_walk = 0;
 						int walk = 0;
 						int walk_buf = 0;
@@ -1418,15 +1305,8 @@ protected:
 						uint32_t entry_size;
 						state = NEED_PREAMBLE;
 
-#define SD_WAL_BUF_P (current_buffer + (walk_buf))
-#define SD_WALK(N) do{walk += N; walk_buf += N; remain = remain - N; remain_in_buf = remain_in_buf - N;}while(0)
 
-						// regex capture vars
-						std::string cap_date;
-						int fac_pri; // to understand this, visit MACROs in syslog.h
-						int fac, pri;
-						std::string cap_msg;
-						DECL_LOG_META(meta_syslog, GREASE_TAG_SYSLOG, GREASE_LEVEL_LOG, 0 ); // static meta struct we will use
+						GreaseLogger::syslog_parse_state state = SYSLOG_BEGIN;
 
 						while(iov_n < nbuffers && remain > 0) {
 							if(iov[iov_n].iov_len > 0) {
@@ -1438,44 +1318,30 @@ protected:
 								DBG_OUT("syslog in %d>> %s\n",iov_n, buf);
 								free(buf);
 #endif
-								if(RE2::FullMatch((char *) iov[iov_n].iov_base,re_dissect_syslog,&fac_pri,&cap_date,&cap_msg)) {
-//									if(cap_date.length() > 3) {
-//										// we figure out the log time here, via strptime() - but honestly, its gonna be when it was sent - so don't bother
-//									}
-									pri = LOG_PRI(fac_pri);
-									if( fac_pri < 8) {
-										meta_syslog.level = GREASE_SYSLOGPRI_TO_LEVEL_MAP[pri];
-									} else {
-										meta_syslog.level = GREASE_LEVEL_LOG;
-										DBG_OUT("out of bounds LOG_PRI ");
-									}
-									fac = LOG_FAC(fac_pri);
-//									DBG_OUT("fac_pri %d  %d\n",fac_pri,fac);
-									if( fac < sizeof(GREASE_SYSLOGFAC_TO_TAG_MAP)) {
-										meta_syslog.tag = GREASE_SYSLOGFAC_TO_TAG_MAP[fac];
-									} else {
-										meta_syslog.tag = GREASE_TAG_SYSLOG;
-										DBG_OUT("out of bounds LOG_FAC %d",fac);
-									}
 
-
-									sink->owner->logP(&meta_syslog,cap_msg.c_str(),cap_msg.length());
+								int r = recv_cnt;
+								if(l->_grabInLogBuffer(entry) == GREASE_OK) {									
+									if(GreaseLogger::parse_single_syslog_to_singleLog((char *) iov[iov_n].iov_base, r, state, entry)) {
+										entry->incRef();
+										l->_submitBuffer(entry);										
+									} else {
+										if(state == SYSLOG_INVALID) {
+											DBG_OUT("Invalid syslog state! (iovec recvmsg() call)");
+										} else {
+											DBG_OUT("Incomplete syslog on iovec recvmsg() call");
+										}
+										l->_returnBuffer(entry);
+									}
 								} else {
-
-									DBG_OUT("NO MATCH @ RE2 for syslog input");
-									// regex did not match. - just log the whole message
-									sink->owner->logP(&meta_syslog,(char *) iov[iov_n].iov_base,iov[iov_n].iov_len);
-
+									DBG_OUT("SyslogDgramSink::listener_work() failed to _grabInLogBuffer() - ouch.");
 								}
-
-								LOG_META_RESET_CACHE( meta_syslog );
-
 
 								remain -= iov[iov_n].iov_len;
 								iov_n++;
 
 							} else {
 								DBG_OUT("syslog in %d ZERO length",iov_n );
+								break;
 							}
 						}
 
@@ -3288,11 +3154,13 @@ protected:
 	class ttyTarget final : public logTarget {
 	public:
 		int ttyFD;
+		char *ttyPath;
 		uv_tty_t tty;
 		static void write_cb(uv_write_t* req, int status) {
 //			HEAVY_DBG_OUT("write_cb");
 			writeCBData *d = (writeCBData *) req->data;
 			d->t->returnBuffer(d->b,false,d->nocallback);
+			delete d;
 			delete req;
 		}
 		static void write_overflow_cb(uv_write_t* req, int status) {
@@ -3357,14 +3225,13 @@ protected:
 		   : logTarget(buffer_size, id, o, cb, std::move(_delim), readydata, num_banks), ttyFD(0)  {
 			_errcmn::err_ev err;
 
-			if(ttypath) {
-				HEAVY_DBG_OUT("TTY: at open(%s) ", ttypath);
-				ttyFD = ::open(ttypath, O_WRONLY, 0);
+			if (ttypath) {
+			    ttyPath = local_strdup_safe(ttypath);
+			} else {
+			    ttyPath = local_strdup_safe("/dev/tty");
 			}
-			else {
-				HEAVY_DBG_OUT("TTY: at open(/dev/tty) ", ttypath);
-				ttyFD = ::open("/dev/tty", O_WRONLY, 0);
-			}
+			HEAVY_DBG_OUT("TTY: at open(%s) ", ttyPath);
+			ttyFD = ::open(ttyPath, O_WRONLY, 0);
 
 			HEAVY_DBG_OUT("TTY: past open() ");
 
@@ -3390,6 +3257,12 @@ protected:
 				readyCB(false,err, this);
 			}
 
+		}
+
+		~ttyTarget() {
+			if (ttyPath) {
+				free(ttyPath);
+			}
 		}
 
 	protected:
@@ -3454,7 +3327,12 @@ protected:
 				max_file_size = o.max_file_size;
 				return *this;
 			}
-
+			bool validate() {
+				if (max_files > MAX_ROTATED_FILES) {
+					max_files = MAX_ROTATED_FILES;
+				}
+				return true;
+			}
 		};
 	protected:
 
@@ -3517,13 +3395,14 @@ protected:
 			if(sz)
 				ft.current_size += *sz;
 
-			HEAVY_DBG_OUT("sub: %d\n",ft.submittedWrites);
+			HEAVY_DBG_OUT("rotate: sub: %d\n",ft.submittedWrites);
 
 			if(ft.submittedWrites < 1 && ft.filerotation.enabled) {
+				HEAVY_DBG_OUT("rotate: current_size: %d\n",ft.current_size);
 				if(ft.current_size > ft.filerotation.max_file_size) {
-					HEAVY_DBG_OUT("Rotate: past max file size\n");
+					HEAVY_DBG_OUT("rotate: past max file size\n");
 					uv_fs_close(ft.owner->loggerLoop, &ft.fileFs, ft.fileHandle, NULL);
-
+					HEAVY_DBG_OUT("rotate: now rotate_files()\n");
 					ft.rotate_files();
 
 					int r = uv_fs_open(ft.owner->loggerLoop, &ft.fileFs, ft.myPath, ft.myFlags, ft.myMode, NULL); // use default loop because we need on_open() cb called in event loop of node.js
@@ -3771,7 +3650,7 @@ protected:
 			}
 			static char *strRotateName(char *s, int n) {
 				char *ret = NULL;
-				if(s && n < MAX_ROTATED_FILES && n > 0) {
+				if(s && n > 0) { // n < MAX_ROTATED_FILES &&
 					int origL = strlen(s);
 					ret = (char *) LMALLOC(origL+10);
 					memset(ret,0,origL+10);
@@ -3793,43 +3672,50 @@ protected:
 			while (rotatedFiles.removeMv(f)) {
 				uv_fs_t req;
 				if(filerotation.max_files && ((n+1) > filerotation.max_files)) { // remove file
-					int r = uv_fs_unlink(owner->loggerLoop,&req,f.path,NULL);
-					DBG_OUT("rotate_files::::::::::::::::: fs_unlink %s\n",f.path);
+					if(!f.path) {
+						ERROR_OUT("file rotation - internal error - NULL path\n");
+					} else {
+						int r = uv_fs_unlink(owner->loggerLoop,&req,f.path,NULL);
+						DBG_OUT("rotate_files::::::::::::::::: fs_unlink %s\n",f.path);
 #if (UV_VERSION_MAJOR > 0)
-					if(r < 0) {
-						if(r != UV_ENOENT) {
-							ERROR_OUT("file rotation - remove %s: %s\n", f.path, uv_strerror(r));
+						if(r < 0) {
+							if(r != UV_ENOENT) {
+								ERROR_OUT("file rotation - remove %s: %s\n", f.path, uv_strerror(r));
+							}
 						}
-					}
 #else
-					if(r) {
-						uv_err_t e = uv_last_error(owner->loggerLoop);
-						if(e.code != UV_ENOENT) {
-							ERROR_OUT("file rotation - remove %s: %s\n", f.path, uv_strerror(e));
+						if(r) {
+							uv_err_t e = uv_last_error(owner->loggerLoop);
+							if(e.code != UV_ENOENT) {
+								ERROR_OUT("file rotation - remove %s: %s\n", f.path, uv_strerror(e));
+							}
 						}
-					}
 #endif
+					}
 				} else {  // move file to new name
-//					char *newname = rotatedFile::strRotateName(myPath,f.num+1);
-					rotatedFile new_f(myPath,f.num+1);
-					DBG_OUT("rotate_files::::::::::::::::: fs_rename\n");
-					int r = uv_fs_rename(owner->loggerLoop, &req, f.path, new_f.path, NULL);
+					if (!f.path) {
+						ERROR_OUT("file rotation - internal error (2) - NULL path\n");
+					} else {
+//						char *newname = rotatedFile::strRotateName(myPath,f.num+1);
+						rotatedFile new_f(myPath,f.num+1);
+						DBG_OUT("rotate_files::::::::::::::::: fs_rename\n");
+						int r = uv_fs_rename(owner->loggerLoop, &req, f.path, new_f.path, NULL);
 #if (UV_VERSION_MAJOR > 0)
-					if(r < 0) {
-						ERROR_OUT("file rotation - rename %s: %s\n", f.path, uv_strerror(r));
+						if(r < 0) {
+							ERROR_OUT("file rotation - rename %s: %s\n", f.path, uv_strerror(r));
 #else
-					if(r) {
-						uv_err_t e = uv_last_error(owner->loggerLoop);
-						if(e.code != UV_OK) {
-							ERROR_OUT("file rotation - rename %s: %s\n", f.path, uv_strerror(e));
-					}
+						if(r) {
+							uv_err_t e = uv_last_error(owner->loggerLoop);
+							if(e.code != UV_OK) {
+								ERROR_OUT("file rotation - rename %s: %s\n", f.path, uv_strerror(e));
+							}
 #endif
-
-//						if(e.code != UV_ENOENT) {
-//							ERROR_OUT("file rotation - rename %s: %s\n", f.path, uv_strerror(e));
-//						}
+//							if(e.code != UV_ENOENT) {
+//								ERROR_OUT("file rotation - rename %s: %s\n", f.path, uv_strerror(e));
+//							}
+						}
+						tempFiles.addMv(new_f);
 					}
-					tempFiles.addMv(new_f);
 				}
 				n--;
 			}
@@ -3860,6 +3746,7 @@ protected:
 			bool needs_rotation = false;
 			uv_fs_t req;
 			rotatedFiles.clear();
+			HEAVY_DBG_OUT("rotation: check_files(%s)\n",myPath);
 			// find existing file...
 			int r = uv_fs_stat(owner->loggerLoop, &req, myPath, NULL);
 #if (UV_VERSION_MAJOR > 0)
@@ -3874,40 +3761,52 @@ protected:
 #endif
 			} else {
 				// if the current file is too big - we need to rotate.
-				if(filerotation.max_file_size && filerotation.max_file_size < req.statbuf.st_size)
+				HEAVY_DBG_OUT("rotation: current file %s is %d bytes\n",myPath,req.statbuf.st_size);
+				if(filerotation.max_file_size && filerotation.max_file_size < req.statbuf.st_size) {
 					needs_rotation = true;
+					HEAVY_DBG_OUT("rotation: current files needs rotation.\n");					
+				}
+
 				all_files_size += req.statbuf.st_size;
 				current_size = req.statbuf.st_size;
 			}
 
-			int n = 1;
-			while(1) {  // find all files...
+			int n = filerotation.max_files;
+			while(n > 0) {  // find all files...
 				uv_fs_t req;
 				rotatedFile f(myPath,n);
-				if(!f.path) break; // either something went wrong, or we are past the max rotation of files
+				if(!f.path) {
+					HEAVY_DBG_OUT("rotation: f.path NULL - should not happen\n");
+					break; // either something went wrong, or we are past the max rotation of files
+				}
+				HEAVY_DBG_OUT("file rotation: fs_stat %s\n",f.path);
 				int r = uv_fs_stat(owner->loggerLoop, &req, f.path, NULL);
 #if (UV_VERSION_MAJOR > 0)
 				if(r < 0) {
 					if(r != UV_ENOENT) {
 						ERROR_OUT("file rotation: [path:%s]: %s\n", f.path, uv_strerror(r));
 					}
-					break;
+//					break;
 #else
 				if(r) {
 					uv_err_t e = uv_last_error(owner->loggerLoop);
 					if(e.code && e.code != UV_ENOENT) {
 						ERROR_OUT("file rotation [path:%s]: %s\n", f.path, uv_strerror(e));
 					}
+					HEAVY_DBG_OUT("rotation: end check_files()\n")
 					break;
 #endif
 				} else {
 					f.size = req.statbuf.st_size;
+					HEAVY_DBG_OUT("rotation: found file: %s of size %d\n",f.path,f.size);
 					rotatedFiles.addMv(f);
 					all_files_size += req.statbuf.st_size;
-					n++;
+
 				}
+				n--;
 			}
-			rotatedFiles.reverse();
+			HEAVY_DBG_OUT("rotation: all_files_size: %d\n",all_files_size);
+//			rotatedFiles.reverse();
 			if(all_files_size > filerotation.max_total_size)
 				needs_rotation = true;
 			return needs_rotation;
@@ -3925,14 +3824,17 @@ protected:
 				err.setError(GREASE_UNKNOWN_NO_PATH);
 				readyCB(false,err,this);
 			} else {
+				filerotation.validate();
 				fileFs.data = this;
-
 
 				if(filerotation.enabled) {
 					bool needs_rotate = check_files();
 					HEAVY_DBG_OUT("rotate_files: total files = %d total size = %d\n",rotatedFiles.remaining()+1,all_files_size);
 					if(needs_rotate || filerotation.rotate_on_start) {
 						HEAVY_DBG_OUT("Needs rotate....\n");
+						if (filerotation.rotate_on_start) {
+							// ok - need to preload the list of existing log files.							
+						}
 						rotate_files();
 					}
 
@@ -4130,7 +4032,7 @@ protected:
 			DBG_OUT("new FilterList: hash %llu", hash);
 			filterHashTable.addNoreplace(hash, list);
 		}
-		Filter f(id,level,t);
+		Filter f(id, origin, tag, level,t);
 		if(preformat && !preformat->empty())
 			f.preFormat = *preformat;
 		if(postformatpremsg && !postformatpremsg->empty())
@@ -4147,6 +4049,97 @@ protected:
 		}
 		return ret;
 	}
+
+	bool _deleteFilter(OriginId origin, TagId tag, FilterId id) {
+		bool removed = false;
+		uint64_t hash = 0;
+		FilterList *list = NULL;
+
+		hash = filterhash(tag,origin);
+
+		uv_mutex_lock(&modifyFilters);
+		if (filterHashTable.find(hash, list)) {
+			Filter *filter = NULL;
+			list->find(id, filter);
+			if (filter) {
+				removed = true;
+				// remove the filter by replacing the filter list with a new list
+				// that doesn't contain the deleted filter.
+				// we do it this way because we can't delete from a bloom filter.
+				FilterList *replacement = new FilterList();
+				for (int i = 0; i < MAX_IDENTICAL_FILTERS; ++i) {
+					if (list->list[i].id != 0 && list->list[i].id != id) {
+						replacement->add(list->list[i]);
+					}
+				}
+				filterHashTable.addReplace(hash, replacement);
+			}
+		}
+		uv_mutex_unlock(&modifyFilters);
+
+		return removed;
+	}
+
+	bool _modifyFilter(OriginId origin, TagId tag, FilterId id, LevelMask level,
+			logLabel *preformat = nullptr, logLabel *postformatpremsg = nullptr, logLabel *postformat = nullptr) {
+		bool modified = false;
+		uint64_t hash = 0;
+		FilterList *list = NULL;
+
+		hash = filterhash(tag, origin);
+
+		uv_mutex_lock(&modifyFilters);
+		if (filterHashTable.find(hash, list)) {
+			Filter *filter = NULL;
+			list->find(id, filter);
+			if (filter) {
+				modified = true;
+				FilterList *replacement = new FilterList();
+				// modify the filter by replacing the filter list with a new list
+				// that contains all non-matching filters, plus a copy of the
+				// to-be-modified filter with appropriate fields changed.
+				// we do it this way because we can't delete from a bloom filter.
+				for (int i = 0; i < MAX_IDENTICAL_FILTERS; ++i) {
+					if (list->list[i].id != 0 && list->list[i].id != id) {
+						replacement->add(list->list[i]);
+					}
+				}
+				// create a new filter with the same id and target, but with modified
+				// level and message formats.
+				Filter f(*filter);
+				f.levelMask = level;
+				if (preformat && !preformat->empty())
+					f.preFormat = *preformat;
+				if (postformatpremsg && !postformatpremsg->empty())
+					f.postFormatPreMsg = *postformatpremsg;
+				if (postformat && !postformat->empty())
+					f.postFormat = *postformat;
+				replacement->add(f);
+				filterHashTable.addReplace(hash, replacement);
+			}
+		}
+		uv_mutex_unlock(&modifyFilters);
+
+		return modified;
+	}
+
+	bool _lookupFilter(OriginId origin, TagId tag, TargetId target, LevelMask level, Filter *&filter) {
+		uint64_t hash = filterhash(tag, origin);
+		FilterList *list = NULL;
+		Filter *found = NULL;
+
+		if (!filterHashTable.find(hash, list)) {
+			return false;
+		}
+
+		list->find(target, level, found);
+		if (!found) {
+			return false;
+		}
+
+		filter = found;
+		return true;
+    }
 
 	bool _lookupFilter(OriginId origin, TagId tag, FilterId id, Filter *&filter) {
 		uint64_t hash = filterhash(tag,origin);
@@ -4182,8 +4175,20 @@ protected:
 	int logFromRaw(char *base, int len);
 
 
-// used for parsing kernel logs
+// used for parsing syslogs
+	enum syslog_parse_state {
+		SYSLOG_BEGIN,
+		SYSLOG_IN_FAC,
+		SYSLOG_IN_DATE_MO,
+		SYSLOG_IN_DATE_DAY,
+		SYSLOG_IN_DATE_TIME,
+		SYSLOG_IN_MESSAGE,
+		SYSLOG_INVALID,
+		SYSLOG_END_LOG
+	};
+	static bool parse_single_syslog_to_singleLog(char *start, int &remain, syslog_parse_state &begin_state, singleLog *entry); //, char *&moved);
 
+// used for parsing kernel logs
 	enum klog_parse_state {
 		LEVEL_BEGIN,  // <
 		IN_LEVEL,     // 0-0
@@ -4272,9 +4277,13 @@ protected:
 	LIB_METHOD_FRIEND(addTarget,GreaseLibTargetOpts *opts);
 	LIB_METHOD_SYNC_FRIEND(maskOutByLevel, uint32_t val);
 	LIB_METHOD_SYNC_FRIEND(unmaskOutByLevel, uint32_t val);
+	LIB_METHOD_SYNC_FRIEND(getFilters, GreaseLibFilter **ret);
 	LIB_METHOD_SYNC_FRIEND(addFilter,GreaseLibFilter *filter);
+	LIB_METHOD_SYNC_FRIEND(modifyFilter,GreaseLibFilter *filter);
+	LIB_METHOD_SYNC_FRIEND(fillFilterId,GreaseLibFilter *filter);
 	LIB_METHOD_SYNC_FRIEND(disableFilter,GreaseLibFilter *filter);
 	LIB_METHOD_SYNC_FRIEND(enableFilter,GreaseLibFilter *filter);
+	LIB_METHOD_SYNC_FRIEND(deleteFilter,GreaseLibFilter *filter);
 	LIB_METHOD_SYNC_FRIEND(addSink,GreaseLibSink *sink);
 	LIB_METHOD_SYNC_FRIEND(disableTarget, TargetId id);
 	LIB_METHOD_SYNC_FRIEND(enableTarget, TargetId id);
@@ -4283,6 +4292,7 @@ protected:
 	friend void ::_greaseLib_handle_stderrFd_cb(uv_poll_t *handle, int status, int events);
 	friend GreaseLibTargetOpts* ::GreaseLib_new_GreaseLibTargetOpts(void);
 	friend GreaseLibTargetOpts* ::GreaseLib_init_GreaseLibTargetOpts(GreaseLibTargetOpts *);
+	friend GreaseLibTargetOpts* ::GreaseLib_get_GreaseLibTargetOpts(GreaseLibTargetOpts *, uint32_t target_id);
 	friend void ::GreaseLib_cleanup_GreaseLibBuf(GreaseLibBuf *b);
 #endif
 

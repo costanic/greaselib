@@ -1,8 +1,10 @@
 /*
     MIT License
 
-    Copyright (c) 2018 WigWag Inc.
+    Copyright (c) 2019, Arm Limited and affiliates.
 
+    SPDX-License-Identifier: MIT
+    
     Permission is hereby granted, free of charge, to any person obtaining a copy
     of this software and associated documentation files (the "Software"), to deal
     in the Software without restriction, including without limitation the rights
@@ -397,8 +399,8 @@ grease_plhdr_callback(struct dl_phdr_info *info, size_t size, void *data)
             	local_log = r;
             	found_module = 1;
             } else {
-		dlclose(lib);
-		local_log = NULL;
+            	dlclose(lib);
+            	local_log = NULL;
             }
     	}
     }

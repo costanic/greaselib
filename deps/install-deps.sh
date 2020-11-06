@@ -1,28 +1,4 @@
 #!/bin/bash
-#
-# Copyright (c) 2019, Arm Limited and affiliates.
-#
-# SPDX-License-Identifier: MIT
-#
-# Permission is hereby granted, free of charge, to any person obtaining a copy
-# of this software and associated documentation files (the "Software"), to
-# deal in the Software without restriction, including without limitation the
-# rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
-# sell copies of the Software, and to permit persons to whom the Software is
-# furnished to do so, subject to the following conditions:
-#
-# The above copyright notice and this permission notice shall be included in all
-# copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-# SOFTWARE.
-#
-
 
 # http://stackoverflow.com/questions/59895/can-a-bash-script-tell-what-directory-its-stored-in
 SOURCE="${BASH_SOURCE[0]}"
@@ -38,7 +14,7 @@ GPERF_DIR=${DEPS_DIR}/gperftools-2.4
 LIBUV_DIR=${DEPS_DIR}/libuv-v1.10.1
 LIBTW_DIR=${DEPS_DIR}/twlib
 #PCRE_DIR=${DEPS_DIR}/pcre2-10.22  # not used
-RE2_DIR=${DEPS_DIR}/re2-2017-01-01
+#RE2_DIR=${DEPS_DIR}/re2-2017-01-01
 
 rm -f $LOG
 mkdir -p ${DEPS_DIR}/build
@@ -108,10 +84,10 @@ popd
 #make install
 #popd
 
-pushd $RE2_DIR
-make
-make install prefix=${DEPS_DIR}/build
-popd
+# pushd $RE2_DIR
+# make
+# make install prefix=${DEPS_DIR}/build
+# popd
 
 
 pushd $LIBTW_DIR

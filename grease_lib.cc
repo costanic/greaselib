@@ -1,8 +1,17 @@
 /*
+ * grease_lib.c
+ *
+ *  Created on: Nov 26, 2016
+ *      Author: ed
+ * (c) 2016, WigWag Inc.
+ */
+/*
     MIT License
 
-    Copyright (c) 2018 WigWag Inc.
+    Copyright (c) 2019, Arm Limited and affiliates.
 
+    SPDX-License-Identifier: MIT
+    
     Permission is hereby granted, free of charge, to any person obtaining a copy
     of this software and associated documentation files (the "Software"), to deal
     in the Software without restriction, including without limitation the rights
@@ -22,13 +31,6 @@
     SOFTWARE.
 */
 
-/*
- * grease_lib.c
- *
- *  Created on: Nov 26, 2016
- *      Author: ed
- * (c) 2016, WigWag Inc.
- */
 
 #include <uv.h>
 #include <stdlib.h>
@@ -37,9 +39,18 @@
 #include "grease_client.h"
 #include "grease_common_tags.h"
 #include "logger.h"
+#include "version.h"
 
 using namespace Grease;
 
+
+// dumps version information to s, with a maximum
+// char output of len
+void GreaseLib_getVersion(char *s, int len) {
+	if (len > 1) {
+		snprintf(s,len-1,"grease_lib ver %s commit %s",GREASE_LIB_VERSION,GREASE_LIB_COMMIT);
+	}
+}
 
 void GreaseLib_init_GreaseLibBuf(GreaseLibBuf *b)
 {
@@ -170,8 +181,10 @@ public:
 			::close(fd);
 		}
 	}
-	~fdRedirectorTicket() {
-		uv_poll_stop(&handle);
+	~fdRedirectorTicket() {		
+	uv_poll_stop(&handle);
+	close();
+	        
 	}
 	void startPoll(uv_poll_cb cb) {
 		uv_poll_start(&handle,UV_READABLE | UV_DISCONNECT, cb);
@@ -191,12 +204,12 @@ typedef TWlib::TW_KHash_32<int, fdRedirectorTicket *, TWlib::TW_Mutex, fd_int_eq
 fdRedirectTable *stdoutRedirectTable = NULL;
 fdRedirectTable *stderrRedirectTable = NULL;
 
-
 //DECL_LOG_META(_stdoutMeta,0,0,0);
 void _greaseLib_handle_stdoutFd_cb(uv_poll_t *handle, int status, int events) {
-	fdRedirectorTicket *r = (fdRedirectorTicket *) handle->data;
-	if(status == 0) {
-		if(r && (events & UV_READABLE)) {
+	fdRedirectorTicket *r = (fdRedirectorTicket *) handle->data;	
+
+if(status == 0) {
+if(r && (events & UV_READABLE)) {
 			DBG_OUT_LINE("level triggered\n");
 			GreaseLogger *l = GreaseLogger::setupClass();
 			GreaseLogger::singleLog *entry = NULL;
@@ -208,6 +221,7 @@ void _greaseLib_handle_stdoutFd_cb(uv_poll_t *handle, int status, int events) {
 					// ok, if read() returns 0 - then it's over:
 					// http://stackoverflow.com/questions/19871556/what-is-the-expected-behavior-for-epoll-wait-ing-on-the-read-end-of-a-closed-pip
 					rlen = ::read(r->fd,entry->buf.handle.base, entry->buf.handle.len);
+				
 					if(rlen > 0) {
 						entry->buf.used = rlen;
 						entry->meta.m.origin = r->origin;
@@ -218,22 +232,26 @@ void _greaseLib_handle_stdoutFd_cb(uv_poll_t *handle, int status, int events) {
 						entry->incRef();
 						l->_submitBuffer(entry);
 					} else if(rlen == 0) {
+					
 						// so, the stream has no more data and is closed:
-						r->close();
-						uv_poll_stop(&r->handle);
+						//r->close();
+						//uv_poll_stop(&r->handle);
 						l->_returnBuffer(entry);
 						if(r->cb) { r->cb(NULL,GREASE_PROCESS_STDOUT,r->fd); }
 						else if(defaultRedirectorClosedCB) {
 							defaultRedirectorClosedCB(NULL,GREASE_PROCESS_STDOUT,r->fd);
 						}
 					} else {
+					
 						l->_returnBuffer(entry);
 						// handle errors:
 						if(rlen == -1) {
+						 
 							// ignore these errno - they just mean no more data for now
 							if(errno != EAGAIN || errno != EWOULDBLOCK) {
 								ERROR_PERROR("read() failed: _greaseLib_handle_stdoutFd_cb",errno);
 							}
+						  break;
 						}
 					}
 				} else {
@@ -254,12 +272,14 @@ void _greaseLib_handle_stdoutFd_cb(uv_poll_t *handle, int status, int events) {
 
 void _greaseLib_handle_stderrFd_cb(uv_poll_t *handle, int status, int events) {
 	fdRedirectorTicket *r = (fdRedirectorTicket *) handle->data;
+
 	if(status == 0) {
 		if(r && (events & UV_READABLE)) {
 			GreaseLogger *l = GreaseLogger::setupClass();
 			GreaseLogger::singleLog *entry = NULL;
 			ssize_t rlen = 1;
 			while(rlen > 0) {
+				
 				// use the _grabInLogBuffer internal calls, to prevent
 				// extra memcpy()s
 				if(l->_grabInLogBuffer(entry) == GREASE_OK) {
@@ -275,8 +295,8 @@ void _greaseLib_handle_stderrFd_cb(uv_poll_t *handle, int status, int events) {
 						l->_submitBuffer(entry);
 					} else if(rlen == 0) {
 						// so, the stream has no more data and is closed:
-						r->close();
-						uv_poll_stop(&r->handle);
+						//r->close();
+						//uv_poll_stop(&r->handle);
 						l->_returnBuffer(entry);
 						if(r->cb) { r->cb(NULL,GREASE_PROCESS_STDERR,r->fd); }
 						else if(defaultRedirectorClosedCB) {
@@ -290,6 +310,7 @@ void _greaseLib_handle_stderrFd_cb(uv_poll_t *handle, int status, int events) {
 							if(errno != EAGAIN || errno != EWOULDBLOCK) {
 								ERROR_PERROR("read() failed: _greaseLib_handle_stdoutFd_cb",errno);
 							}
+						   break;
 						}
 					}
 				} else {
@@ -716,6 +737,36 @@ void GreaseLib_set_flag_GreaseLibTargetOpts(GreaseLibTargetOpts *opts,uint32_t f
 	opts->flags |= flag;
 }
 
+GreaseLibTargetOpts *GreaseLib_get_GreaseLibTargetOpts(GreaseLibTargetOpts *ret, uint32_t target_id) {
+	GreaseLogger *l = GreaseLogger::setupClass();
+
+	GreaseLogger::logTarget *t = NULL;
+	if (!l->targets.find(target_id, t)) {
+		return NULL;
+	}
+
+	// clear the return struct
+	::memset(ret, 0, sizeof(*ret));
+
+	GreaseLogger::fileTarget *filetarget = dynamic_cast<GreaseLogger::fileTarget *>(t);
+	if (filetarget != NULL) {
+		ret->file = local_strdup_safe(filetarget->myPath);
+	}
+
+	GreaseLogger::ttyTarget *ttytarget = dynamic_cast<GreaseLogger::ttyTarget *>(t);
+	if (ttytarget != NULL) {
+		ret->tty = local_strdup_safe(ttytarget->ttyPath);
+	}
+
+#if 0
+	GreaseLogger::callbackTarget *callbacktarget = dynamic_cast<GreaseLogger::callbackTarget *>(t);
+	if (callback != NULL) {
+		ret->name = "callbacktarget"
+	}
+#endif
+
+	return ret;
+}
 
 LIB_METHOD_SYNC(modifyDefaultTarget,GreaseLibTargetOpts *opts) {
 	GreaseLogger *l = GreaseLogger::setupClass();
@@ -769,6 +820,7 @@ LIB_METHOD_SYNC(modifyDefaultTarget,GreaseLibTargetOpts *opts) {
 			}
 
 			if(opts->fileOpts->_enabledFlags & GREASE_LIB_SET_FILEOPTS_ROTATE) {
+				rotateOpts.enabled = true;
 				if(opts->fileOpts->_enabledFlags & GREASE_LIB_SET_FILEOPTS_MAXFILES) rotateOpts.max_files = opts->fileOpts->max_files;
 				if(opts->fileOpts->_enabledFlags & GREASE_LIB_SET_FILEOPTS_MAXFILESIZE) rotateOpts.max_file_size = opts->fileOpts->max_file_size;
 				if(opts->fileOpts->_enabledFlags & GREASE_LIB_SET_FILEOPTS_MAXTOTALSIZE) rotateOpts.max_total_size = opts->fileOpts->max_total_size;
@@ -895,6 +947,7 @@ LIB_METHOD(addTarget,GreaseLibTargetOpts *opts) {
 			}
 
 			if(opts->fileOpts->_enabledFlags & GREASE_LIB_SET_FILEOPTS_ROTATE) {
+				rotateOpts.enabled = true;
 				if(opts->fileOpts->_enabledFlags & GREASE_LIB_SET_FILEOPTS_MAXFILES) rotateOpts.max_files = opts->fileOpts->max_files;
 				if(opts->fileOpts->_enabledFlags & GREASE_LIB_SET_FILEOPTS_MAXFILESIZE) rotateOpts.max_file_size = opts->fileOpts->max_file_size;
 				if(opts->fileOpts->_enabledFlags & GREASE_LIB_SET_FILEOPTS_MAXTOTALSIZE) rotateOpts.max_total_size = opts->fileOpts->max_total_size;
@@ -1026,6 +1079,66 @@ void GreaseLib_setvalue_GreaseLibFilter(GreaseLibFilter *opts,uint32_t flag,uint
 	}
 }
 
+LIB_METHOD_SYNC(getFilters, GreaseLibFilter **ret)
+{
+	int count;
+	GreaseLogger *logger = GreaseLogger::setupClass();
+	GreaseLibFilter *filters = NULL;
+	GreaseLibFilter *tmpfilters = NULL;
+	GreaseLibFilter *l;
+	GreaseLogger::Filter *r;
+
+	// add default filter
+	count = 1;
+	filters = (GreaseLibFilter *) ::realloc(filters, count * sizeof(*filters));
+	if (NULL == filters) {
+		return -ENOMEM;
+	}
+	l = &filters[count - 1];
+	r = &logger->defaultFilter;
+	l->id = r->id;
+	l->origin = r->origin;
+	l->tag = r->tag;
+	l->mask = r->levelMask;
+	l->target = r->targetId;
+
+	// add other filters
+	GreaseLogger::FilterHashTable::HashIterator iter(logger->filterHashTable);
+	while (!iter.atEnd()) {
+
+		GreaseLogger::FilterList *list = *iter.data();
+		for (int i = 0; i < MAX_IDENTICAL_FILTERS; ++i) {
+			if (list->list[i].id != 0) {
+				++count;
+				tmpfilters = (GreaseLibFilter *) ::realloc(filters, count * sizeof(*filters));
+				if (NULL == tmpfilters) {
+					::free(filters);
+					return -ENOMEM;
+				}
+				filters = tmpfilters;
+				l = &filters[count - 1];
+				r = &list->list[i];
+				l->id = r->id;
+				l->origin = r->origin;
+				l->tag = r->tag;
+				l->mask = r->levelMask;
+				l->target = r->targetId;
+			}
+		}
+
+		iter.getNext();
+	}
+
+	if (ret != NULL) {
+		*ret = filters;
+	} else {
+		::free(filters);
+		filters = NULL;
+	}
+
+	return count;
+}
+
 LIB_METHOD_SYNC(addFilter,GreaseLibFilter *filter) {
 	FilterId id;
 
@@ -1059,6 +1172,50 @@ LIB_METHOD_SYNC(addFilter,GreaseLibFilter *filter) {
 
 }
 
+LIB_METHOD_SYNC(fillFilterId, GreaseLibFilter *filter) {
+	if (!filter) {
+		return GREASE_INVALID_PARAMS;
+	}
+
+	GreaseLogger::Filter *f = NULL;
+	GreaseLogger *l = GreaseLogger::setupClass();
+
+	if (l->_lookupFilter(filter->origin, filter->tag, filter->target, filter->mask, f)) {
+		filter->id = f->id;
+		return GREASE_LIB_OK;
+	}
+
+	return GREASE_LIB_NOT_FOUND;
+}
+
+LIB_METHOD_SYNC(modifyFilter, GreaseLibFilter *filter) {
+	if (!filter) {
+		return GREASE_INVALID_PARAMS;
+	}
+
+	GreaseLogger *l = GreaseLogger::setupClass();
+
+	GreaseLogger::logLabel *preFormat = NULL;
+	GreaseLogger::logLabel *postFormat = NULL;
+	GreaseLogger::logLabel *postFormatPreMsg = NULL;
+
+	if (filter->format_post) {
+		postFormat = GreaseLogger::logLabel::fromUTF8(filter->format_post, filter->format_post_len);
+	}
+	if (filter->format_pre) {
+		preFormat = GreaseLogger::logLabel::fromUTF8(filter->format_pre, filter->format_pre_len);
+	}
+	if (filter->format_post_pre_msg) {
+		postFormatPreMsg = GreaseLogger::logLabel::fromUTF8(filter->format_post_pre_msg, filter->format_post_pre_msg_len);
+	}
+
+	if (l->_modifyFilter(filter->origin, filter->tag, filter->id, filter->mask, preFormat, postFormatPreMsg, postFormat)) {
+		return GREASE_LIB_OK;
+	} else {
+		return GREASE_LIB_NOT_FOUND;
+	}
+}
+
 LIB_METHOD_SYNC(disableFilter,GreaseLibFilter *filter) {
 	GreaseLogger *l = GreaseLogger::setupClass();
 	GreaseLogger::Filter *found = NULL;
@@ -1078,6 +1235,17 @@ LIB_METHOD_SYNC(enableFilter,GreaseLibFilter *filter) {
 
 	if(l->_lookupFilter(filter->origin,filter->tag,filter->id,found)) {
 		found->_disabled = false;
+		return GREASE_LIB_OK;
+	} else {
+		return GREASE_LIB_NOT_FOUND;
+	}
+}
+
+LIB_METHOD_SYNC(deleteFilter,GreaseLibFilter *filter) {
+	GreaseLogger *l = GreaseLogger::setupClass();
+	GreaseLogger::Filter *found = NULL;
+
+	if (l->_deleteFilter(filter->origin, filter->tag, filter->id)) {
 		return GREASE_LIB_OK;
 	} else {
 		return GREASE_LIB_NOT_FOUND;
@@ -1315,6 +1483,7 @@ LIB_METHOD_SYNC(addFDForStdout,int fd, uint32_t originId, GreaseLibProcessClosed
 	} else {
 		stdoutRedirectTable->addReplace(fd,data,old);
 		if(old) {
+			
 			delete old;
 		}
 		data->startPoll(_greaseLib_handle_stdoutFd_cb);
@@ -1341,6 +1510,7 @@ LIB_METHOD_SYNC(addFDForStderr,int fd, uint32_t originId, GreaseLibProcessClosed
 	} else {
 		stderrRedirectTable->addReplace(fd,data,old);
 		if(old) {
+			
 			delete old;
 		}
 		data->startPoll(_greaseLib_handle_stderrFd_cb);
@@ -1352,7 +1522,7 @@ LIB_METHOD_SYNC(removeFDForStdout,int fd) {
 	fdRedirectorTicket *old = NULL;
 	stdoutRedirectTable->remove(fd,old);
 	if(old) {
-		old->close();
+		//old->close();
 		delete old;
 	}
 	return GREASE_LIB_OK;
@@ -1361,7 +1531,7 @@ LIB_METHOD_SYNC(removeFDForStderr,int fd) {
 	fdRedirectorTicket *old = NULL;
 	stderrRedirectTable->remove(fd,old);
 	if(old) {
-		old->close();
+		//old->close();
 		delete old;
 	}
 	return GREASE_LIB_OK;

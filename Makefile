@@ -1,5 +1,5 @@
 
-LDFLAGS ?= -lpthread -pthread 
+#LDFLAGS ?= -lpthread -pthread 
 # TWSOVERSION is the compiler version...
 # see http://rute.2038bug.com/node26.html.gz
 
@@ -19,7 +19,7 @@ ALLOBJS= $($<:%.cpp=%.o)
 
 DEBUG_OPTIONS=-rdynamic -D_TW_TASK_DEBUG_THREADS_ -DLOGGER_HEAVY_DEBUG  -D__DEBUG -D_TW_DEBUG 
 #-D_TW_BUFBLK_DEBUG_STACK_
-CFLAGS= $(GLIBCFLAG) -I./include   -fPIC -I./deps/$(LIBUVDIR)/include -I./deps/build/include  -L./deps/build/lib -DGREASE_LIB
+CFLAGS= $(GLIBCFLAG) -I./include   -fPIC -I./deps/$(LIBUVDIR)/include -I./deps/build/include  -L./deps/build/lib -DGREASE_LIB  -Wno-error=format-security
 
 DEBUG_CFLAGS= -g -DERRCMN_DEBUG_BUILD $(DEBUG_OPTIONS)
 
@@ -37,9 +37,10 @@ LD_TEST_FLAGS= -lgtest
 
 ## concerning the -whole-archive flags: http://stackoverflow.com/questions/14889941/link-a-static-library-to-a-shared-one-during-build
 ## originally we used that when creating the node module version of greaseLogger - but apparently needed for tcmalloc here also
-LDFLAGS += -L./deps/build/lib -luv -lre2 -ldl -lTW -lm -ltcmalloc_minimal -lstacktrace -lstdc++
+# -luv -lTW
+LDFLAGS += -L./deps/build/lib  -ldl -lm -ltcmalloc_minimal -lstacktrace -lstdc++ -lpthread -pthread
 # -Wl,-whole-archive deps/build/lib/libtcmalloc_minimal.a -Wl,-no-whole-archive 
-STATIC_LIB_FLAGS= deps/build/lib/libuv.a deps/build/lib/libre2.a -ldl -lTW -lm -Wl,-whole-archive deps/build/lib/libtcmalloc_minimal.a -Wl,-no-whole-archive
+STATIC_LIB_FLAGS= -ldl -lTW -lm -Wl,-whole-archive deps/build/lib/libtcmalloc_minimal.a -Wl,-no-whole-archive
 
 HRDS= include/TW/tw_bufblk.h  include/TW/tw_globals.h  include/TW/tw_object.h include/TW/tw_stack.h\
 include/TW/tw_dlist.h   include/TW/tw_llist.h    include/TW/tw_socktask.h    include/TW/tw_syscalls.h\
@@ -71,28 +72,44 @@ $(OUTPUT_DIR)/%.o: %.cc
 $(OUTPUT_DIR)/%.o: %.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
+.PHONY: getversion
 
-libgrease.so.1: CFLAGS += -shared -Wl,-soname,libgrease.so.1	
-libgrease.so.1: $(OBJS) 
-	$(CXX) $(CFLAGS) $(LDFLAGS)  -o $@ $^ 
+getversion:
+	./update_version.sh
+
+# -Wl,-z,defs 
+libgrease.so.1: CFLAGS += -shared -Wl,-soname,libgrease.so.1  -Wl,--no-as-needed -ldl
+libgrease.so.1: getversion $(OBJS)
+	$(CXX) $(CFLAGS)  -o $@ $(OBJS) deps/build/lib/libuv.a deps/build/lib/libTW.a $(LDFLAGS) 
+
+# -g -O0
+# -DERRCMN_DEBUG_BUILD  -Wl,--whole-archive -ldl -Wl,--no-whole-archive -Wl,--no-undefined -Wl,-Bstatic -ldl -Wl,-Bdynamic -Wl,--whole-archive -Wl,--no-whole-archive
+#  -Wl,-z,defs (to test for missing defs)
+libgrease.so.1-debug: CFLAGS += -DERRCMN_DEBUG_BUILD -g -O0 -shared -Wl,-soname,libgrease.so.1 -Wl,--no-as-needed -ldl
+libgrease.so.1-debug: getversion $(OBJS)
+	$(CXX) $(CFLAGS) -o $@ $(OBJS) deps/build/lib/libuv.a deps/build/lib/libTW.a $(LDFLAGS)  
+
 
 libgrease.a: CFLAGS += -static -DGREASE_LIB
-libgrease.a: $(OBJS)
-	$(AR) rcs $@ $^ 
+libgrease.a: getversion $(OBJS)
+	$(AR) rcs $@ $(OBJS)
+
+libgrease.a-server-debug: CFLAGS += -DERRCMN_DEBUG_BUILD -g -O0 -DGREASE_IS_LOCAL -static -DGREASE_LIB 
+libgrease.a-server-debug: getversion $(OBJS) deps/build/lib/libuv.a deps/build/lib/libTW.a
+	$(AR) rcs libgrease.a $(OBJS)
 
 libgrease.a-server: CFLAGS += -DGREASE_IS_LOCAL -static -DGREASE_LIB 
-libgrease.a-server: $(OBJS)
-	$(AR) rcs libgrease.a $^ 
+libgrease.a-server: getversion $(OBJS)
+	$(AR) rcs libgrease.a $(OBJS) 
 
 
 standalone_test_logsink: CFLAGS+= -DGREASE_LIB -I./deps/$(LIBUVDIR)/include -I./deps/twlib/include
-standalone_test_logsink: standalone_test_logsink.o libgrease.a
-	$(CXX) $(CXXFLAGS) $(CFLAGS) libgrease.a $(LDFLAGS) -lpthread -pthread  -o $@ 
+standalone_test_logsink: getversion standalone_test_logsink.o libgrease.a
+	$(CXX) $(CXXFLAGS) $(CFLAGS) libgrease.a deps/build/lib/libuv.a deps/build/lib/libTW.a $(LDFLAGS) -lpthread -pthread  -o $@ 
 
 grease_echo: CFLAGS+= -DGREASE_LIB -I./deps/$(LIBUVDIR)/include -I./deps/twlib/include
 grease_echo: $(OUTPUT_DIR)/grease_client.o $(OUTPUT_DIR)/grease_echo.o
 	$(CXX) $(CXXFLAGS) $(CFLAGS) $^ -ldl -o $@ 
-
 
 
 install: tw_lib $(EXTRA_TARGET)

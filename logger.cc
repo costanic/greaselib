@@ -1,8 +1,18 @@
 /*
+ * logger.cc
+ *
+ *  Created on: Aug 27, 2014
+ *      Author: ed
+ * (c) 2014, WigWag Inc.
+ */
+
+/*
     MIT License
 
-    Copyright (c) 2018 WigWag Inc.
+    Copyright (c) 2019, Arm Limited and affiliates.
 
+    SPDX-License-Identifier: MIT
+    
     Permission is hereby granted, free of charge, to any person obtaining a copy
     of this software and associated documentation files (the "Software"), to deal
     in the Software without restriction, including without limitation the rights
@@ -21,14 +31,6 @@
     OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
     SOFTWARE.
 */
-
-/*
- * logger.cc
- *
- *  Created on: Aug 27, 2014
- *      Author: ed
- * (c) 2014, WigWag Inc.
- */
 
 
 #include "logger.h"
@@ -446,14 +448,7 @@ void GreaseLogger::stopFlushTimer() {
 
 void GreaseLogger::mainThread(void *p) {
 	GreaseLogger *SELF = (GreaseLogger *) p;
-	uv_timer_init(SELF->loggerLoop, &SELF->flushTimer);
-	uv_unref((uv_handle_t *)&LOGGER->flushTimer);
-//	uv_timer_start(&SELF->flushTimer, flushTimer_cb, 2000, 500);
-	uv_async_init(SELF->loggerLoop, &SELF->asyncInternalCommand, handleInternalCmd);
-	uv_async_init(SELF->loggerLoop, &SELF->asyncExternalCommand, handleExternalCmd);
-
 	uv_run(SELF->loggerLoop, UV_RUN_DEFAULT);
-
 }
 
 int GreaseLogger::log(const logMeta &f, const char *s, int len) { // does the work of logging
@@ -543,10 +538,16 @@ int GreaseLogger::logSync(const logMeta &f, const char *s, int len) { // does th
 		return GREASE_OK;
 }
 void GreaseLogger::flushAll(bool nocallbacks) { // flushes buffers. Synchronous
+	static bool suppressTargetMsg = false;
 	if(LOGGER->defaultTarget) {
 		LOGGER->defaultTarget->flushAll();
-	} else
-		ERROR_OUT("No default target!");
+		suppressTargetMsg = false;
+	} else {
+		if(!suppressTargetMsg) {
+			ERROR_OUT("No default target!");
+			suppressTargetMsg = true;
+		}
+	}
 
 	logTarget **t; // shut down other targets.
 	GreaseLogger::TargetTable::HashIterator iter(LOGGER->targets);
@@ -693,7 +694,11 @@ void GreaseLogger::start_logger_cb(GreaseLogger *l, _errcmn::err_ev &err, void *
 void GreaseLogger::start(actionCB cb, target_start_info *data) {
 	// FIXME use options for non default target
 	setupDefaultTarget(cb,data);
-
+	uv_timer_init(this->loggerLoop, &this->flushTimer);
+	uv_unref((uv_handle_t *)&LOGGER->flushTimer);
+//	uv_timer_start(&SELF->flushTimer, flushTimer_cb, 2000, 500);
+	uv_async_init(this->loggerLoop, &this->asyncInternalCommand, handleInternalCmd);
+	uv_async_init(this->loggerLoop, &this->asyncExternalCommand, handleExternalCmd);
 	uv_thread_create(&logThreadId,GreaseLogger::mainThread,this);
 }
 
@@ -982,6 +987,7 @@ NAN_METHOD(GreaseLogger::AddTagLabel) {
 		Nan::Utf8String v8str(info[1]->ToString());
 		logLabel *label = logLabel::fromUTF8(v8str.operator *(),v8str.length());
 		l->tagLabels.addReplace(info[0]->Uint32Value(),label);
+		free(label);
 	} else {
 		return Nan::ThrowTypeError("addTagLabel: bad parameters");
 	}
@@ -1003,6 +1009,7 @@ NAN_METHOD(GreaseLogger::AddOriginLabel) {
 		Nan::Utf8String v8str(info[1]->ToString());
 		logLabel *label = logLabel::fromUTF8(v8str.operator *(),v8str.length());
 		l->originLabels.addReplace(info[0]->Uint32Value(),label);
+		free(label);
 	} else {
 		return Nan::ThrowTypeError("addOriginLabel: bad parameters");
 	}
@@ -1023,6 +1030,7 @@ NAN_METHOD(GreaseLogger::AddLevelLabel) {
 		logLabel *label = logLabel::fromUTF8(v8str.operator *(),v8str.length());
 		uint32_t v = info[0]->Uint32Value();
 		l->levelLabels.addReplace(v,label);
+		free(label);
 	} else {
 		return Nan::ThrowTypeError("addLevelLabel: bad parameters");
 	}
@@ -1917,6 +1925,124 @@ bool GreaseLogger::parse_single_klog_to_singleLog(char *start, int &remain, klog
 	}
 }
 
+int fast_ascii_to_int(char *s, int n) {
+    int ret = 0;
+    int e = 1;
+    while(n > 0) {
+        ret += (s[n-1] - '0') * e;
+        e = e * 10;
+        n--;
+    }
+    return ret;
+}
+
+
+bool GreaseLogger::parse_single_syslog_to_singleLog(char *start, int &remain, syslog_parse_state &begin_state, singleLog *entry) { // , char *&moved) {
+    syslog_parse_state state = begin_state;
+    char *look = start;
+    char *cap = NULL;
+    int klog_level;
+    char log_fac_buf[5];
+    int log_fac_buf_n = 0;
+    int fac_pri = 0;
+    int pri; int fac;
+    char *msg_mark = NULL;
+
+// EXAMPLE LOG INPUT:<30>Feb  1 15:40:05 nm-dispatcher: req:2 'up' [wlan1]: s
+//                   <30>Jan 31 15:40:05 nm-dispatcher: req:2 'up' [wlan1]: s
+
+    while(remain > 0 && state != SYSLOG_INVALID && state != SYSLOG_END_LOG) {
+        switch(state) {
+            case SYSLOG_BEGIN:
+                if (*look == '<') {
+                    state = SYSLOG_IN_FAC;                    
+                }
+                break;
+            case SYSLOG_IN_FAC:
+                if(log_fac_buf_n > 4) {
+                    state = SYSLOG_INVALID;
+                    break;
+                }
+                if (*look >= '0' && *look <= '9') {
+                    log_fac_buf[log_fac_buf_n] = *look;
+                    log_fac_buf_n++;
+                    break;
+                }
+                if (*look == '>') {
+                    // not needed -> log_fac_buf[log_fac_buf_n] = '\0';
+                    // ok - we have a log_fac number, parse it up
+                    fac_pri = fast_ascii_to_int(log_fac_buf, log_fac_buf_n);
+
+                    pri = LOG_PRI(fac_pri);
+                    if( pri < 8) {
+                        entry->meta.m.level = GREASE_SYSLOGPRI_TO_LEVEL_MAP[pri];
+                    } else {
+                        entry->meta.m.level = GREASE_LEVEL_LOG;
+                        DBG_OUT("out of bounds LOG_PRI ");
+                    }
+                    fac = LOG_FAC(fac_pri);
+//                                  DBG_OUT("fac_pri %d  %d\n",fac_pri,fac);
+                    if( fac < sizeof(GREASE_SYSLOGFAC_TO_TAG_MAP)) {
+                        entry->meta.m.tag = GREASE_SYSLOGFAC_TO_TAG_MAP[fac];
+                    } else {
+                        entry->meta.m.tag = GREASE_TAG_SYSLOG;
+                        DBG_OUT("out of bounds LOG_FAC %d",fac);
+                    }
+
+                    // now the date
+                    state = SYSLOG_IN_DATE_MO;
+                }
+                break;
+            case SYSLOG_IN_DATE_MO:
+                // let's cheat. We don't care about the date. So skip past it
+                // the date-time stamp is 16 char, including last space
+                if (remain > 16) {
+                    look+= 16;
+                    remain = remain - 16;
+                    state = SYSLOG_IN_MESSAGE;
+                    continue;
+                } else {
+                    state = SYSLOG_INVALID;
+                    break;
+                }
+            case SYSLOG_IN_DATE_DAY:
+            case SYSLOG_IN_DATE_TIME:
+                
+            case SYSLOG_IN_MESSAGE:
+                msg_mark = look;
+//                moved = look;
+                // assume this is only one log message
+                state = SYSLOG_END_LOG;
+                continue;          
+        }
+        remain--;
+        look++;
+//        moved = look;
+    }
+    if(state == SYSLOG_END_LOG) {
+        begin_state = SYSLOG_BEGIN; // on the next call, move to next log entry
+        entry->meta.m.origin = 0;
+        if(remain > 0) {
+            // actually log stuff with some length
+            if(remain > entry->buf.handle.len) {
+                // its too big... (should probably never happen)
+                // just truncate it
+                ::memcpy((void *)entry->buf.handle.base,msg_mark,(int) entry->buf.handle.len);
+                entry->buf.used = (int) entry->buf.handle.len;
+            } else {
+                ::memcpy((void *)entry->buf.handle.base,msg_mark,(int) remain);
+                entry->buf.used = (int)remain;
+            }
+        } else {
+            return false;
+        }
+        // we only return true if this loggable
+        return true;
+    } else {
+        begin_state = state;
+        return false;
+    }
+}
 
 /**
  * Messages from the /dev/kmsg are a bit simpler:
@@ -1926,108 +2052,108 @@ bool GreaseLogger::parse_single_klog_to_singleLog(char *start, int &remain, klog
  * 6,2000,8486026862,-;thinkpad_acpi: EC reports that Thermal Table has changed
  */
 bool GreaseLogger::parse_single_devklog_to_singleLog(char *start, int &remain, klog_parse_state &begin_state, singleLog *entry, char *&moved) {
-	klog_parse_state state = begin_state;
-	char *look = start;
-	char *cap = NULL;
-	int klog_level;
+    klog_parse_state state = begin_state;
+    char *look = start;
+    char *cap = NULL;
+    int klog_level;
 
-	while(remain > 0 && state != INVALID && state != END_LOG) {
-		switch(state) {
-			case LEVEL_BEGIN:
-				cap = look;
-				state = IN_LEVEL;
-				break;
-			case IN_LEVEL:
-				if (*look == ',') {
-					*look = '\0';  // make it NULL, so we can capture the string
+    while(remain > 0 && state != INVALID && state != END_LOG) {
+        switch(state) {
+            case LEVEL_BEGIN:
+                cap = look;
+                state = IN_LEVEL;
+                break;
+            case IN_LEVEL:
+                if (*look == ',') {
+                    *look = '\0';  // make it NULL, so we can capture the string
 
-					if(look == cap + 1 || look == cap + 2) { // there should be only 1 or 2, digit
-						if(*cap == 'c') {
-							// this is a continuation line. Special case.
-							// TODO
-							state = CONT_BODY_BEGIN;
-						} else
-						if(*cap == 'd') {
-							entry->meta.m.level = GREASE_KLOG_DEFAULT_LEVEL;
-							state = TIME_STAMP_BEGIN;
-						} else {
-							if(look == cap + 1)
-								klog_level = *cap - '0';
-							else if (*cap == '1')
-								klog_level = *(cap+1) - '0' + 10;
-							else
-								klog_level = 19;  // Max log level can be 19
+                    if(look == cap + 1 || look == cap + 2) { // there should be only 1 or 2, digit
+                        if(*cap == 'c') {
+                            // this is a continuation line. Special case.
+                            // TODO
+                            state = CONT_BODY_BEGIN;
+                        } else
+                        if(*cap == 'd') {
+                            entry->meta.m.level = GREASE_KLOG_DEFAULT_LEVEL;
+                            state = TIME_STAMP_BEGIN;
+                        } else {
+                            if(look == cap + 1)
+                                klog_level = *cap - '0';
+                            else if (*cap == '1')
+                                klog_level = *(cap+1) - '0' + 10;
+                            else
+                                klog_level = 19;  // Max log level can be 19
 
-							if (klog_level < 20 && klog_level >= 0) {
-								// valid level
-								entry->meta.m.level = GREASE_KLOGLEVEL_TO_LEVEL_MAP[klog_level];
-								state = TIME_STAMP_BEGIN;
-							} else {
-								// ?? dunno, something new, move on - use default
-								entry->meta.m.level = GREASE_KLOG_DEFAULT_LEVEL;
-								state = TIME_STAMP_BEGIN;
-							}
-						}
-					} else { // else, there was nothing confusing, skip to body - use default level
-						if (*look == ';') { // in this case,
-							entry->meta.m.level = GREASE_KLOG_DEFAULT_LEVEL;
-							state = BODY_BEGIN;
-						}
+                            if (klog_level < 20 && klog_level >= 0) {
+                                // valid level
+                                entry->meta.m.level = GREASE_KLOGLEVEL_TO_LEVEL_MAP[klog_level];
+                                state = TIME_STAMP_BEGIN;
+                            } else {
+                                // ?? dunno, something new, move on - use default
+                                entry->meta.m.level = GREASE_KLOG_DEFAULT_LEVEL;
+                                state = TIME_STAMP_BEGIN;
+                            }
+                        }
+                    } else { // else, there was nothing confusing, skip to body - use default level
+                        if (*look == ';') { // in this case,
+                            entry->meta.m.level = GREASE_KLOG_DEFAULT_LEVEL;
+                            state = BODY_BEGIN;
+                        }
 
-//						state = INVALID;
-					}
-				}
-				break;
-			case TIME_STAMP_BEGIN:
-				if(*look == ';') {
-					state = BODY_BEGIN;
-				}
-				break;
-			case BODY_BEGIN:
-				cap = look;
-				if(remain == 1) state = END_LOG;
-				else state = IN_BODY;
-				break;
-			case IN_BODY:
-				if(remain == 1) state = END_LOG;
-				break;
-//				if(remain == 1) {
+//                      state = INVALID;
+                    }
+                }
+                break;
+            case TIME_STAMP_BEGIN:
+                if(*look == ';') {
+                    state = BODY_BEGIN;
+                }
+                break;
+            case BODY_BEGIN:
+                cap = look;
+                if(remain == 1) state = END_LOG;
+                else state = IN_BODY;
+                break;
+            case IN_BODY:
+                if(remain == 1) state = END_LOG;
+                break;
+//              if(remain == 1) {
 //
-//				}
-//				cap = look;
-//				if (*look == '\n') {
-//					state = END_LOG;
-//				}
-//				break;
-		}
-		remain--;
-		look++;
-		moved = look;
-	}
-	if(state == END_LOG) {
-		begin_state = LEVEL_BEGIN; // on the next call, move to next log entry
-		entry->meta.m.tag = GREASE_TAG_KERNEL;
-		entry->meta.m.origin = 0;
-		if((look - cap) > 0) {
-			// actually log stuff with some length
-			if((look - cap - 1) > entry->buf.handle.len) {
-				// its too big... (should probably never happen)
-				// just truncate it
-				::memcpy((void *)entry->buf.handle.base,cap,(int) entry->buf.handle.len);
-				entry->buf.used = (int) entry->buf.handle.len;
-			} else {
-				::memcpy((void *)entry->buf.handle.base,cap,(int) (look-cap-1));
-				entry->buf.used = (int)(look-cap-1);
-			}
-		} else {
-			return false;
-		}
-		// we only return true if this loggable
-		return true;
-	} else {
-		begin_state = state;
-		return false;
-	}
+//              }
+//              cap = look;
+//              if (*look == '\n') {
+//                  state = END_LOG;
+//              }
+//              break;
+        }
+        remain--;
+        look++;
+        moved = look;
+    }
+    if(state == END_LOG) {
+        begin_state = LEVEL_BEGIN; // on the next call, move to next log entry
+        entry->meta.m.tag = GREASE_TAG_KERNEL;
+        entry->meta.m.origin = 0;
+        if((look - cap) > 0) {
+            // actually log stuff with some length
+            if((look - cap - 1) > entry->buf.handle.len) {
+                // its too big... (should probably never happen)
+                // just truncate it
+                ::memcpy((void *)entry->buf.handle.base,cap,(int) entry->buf.handle.len);
+                entry->buf.used = (int) entry->buf.handle.len;
+            } else {
+                ::memcpy((void *)entry->buf.handle.base,cap,(int) (look-cap-1));
+                entry->buf.used = (int)(look-cap-1);
+            }
+        } else {
+            return false;
+        }
+        // we only return true if this loggable
+        return true;
+    } else {
+        begin_state = state;
+        return false;
+    }
 
 }
 
@@ -2042,7 +2168,7 @@ int GreaseLogger::_grabInLogBuffer(singleLog* &buf) {
 int GreaseLogger::_returnBuffer(singleLog *buf) {
 	buf->clear();
 	masterBufferAvail.add(buf);
-	return GREASE_OK;
+    return GREASE_OK;
 }
 
 int GreaseLogger::_submitBuffer(singleLog *buf) {
@@ -2074,7 +2200,7 @@ int GreaseLogger::_log( const logMeta &meta, const char *s, int len) { // intern
 		internalCmdReq req(WRITE_TARGET_OVERFLOW);
 		int _len = len;
 		if(len > MAX_LOG_MESSAGE_SIZE) _len = MAX_LOG_MESSAGE_SIZE;
-		l = new singleLog(_len);
+		l = singleLog::heapSingleLog(_len);
 		l->buf.memcpy(s,len,"[!! OVERFLOW ENDING]");
 		if(META_HAS_IGNORES(meta)) {
 			extra_logMeta *extra = META_WITH_EXTRAS(meta);
