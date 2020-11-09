@@ -34,8 +34,6 @@ fi
 
 pushd $GPERF_DIR
 touch $LOG
-cp configure.orig configure
-cp Makefile.in.orig Makefile.in
 #make clean
 echo "Echo building dependencies..." >> $LOG
 ./configure $CONFIG_OPTIONS --prefix=${DEPS_DIR}/build --enable-frame-pointers --with-pic 2>&1 >> $LOG || echo "Failed in configure for gperftools" >> $LOG
