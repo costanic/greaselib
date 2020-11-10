@@ -53,6 +53,8 @@ SRCS_C= grease_client.c local_strdup.c
 OBJS= $(SRCS_CPP:%.cc=$(OUTPUT_DIR)/%.o) $(SRCS_C:%.c=$(OUTPUT_DIR)/%.o)
 OBJS_NAMES= $(SRCS_CPP:%.cc=$%.o) $(SRCS_C:%.c=%.o)
 
+DEPS_LIB_DIR=deps/build/lib
+
 ##tw_sparsehash.h
 
 ## The -fPIC option tells gcc to create position 
@@ -65,6 +67,8 @@ OBJS_NAMES= $(SRCS_CPP:%.cc=$%.o) $(SRCS_C:%.c=%.o)
 ifdef DEBUG
 CFLAGS += $(DEBUG_CFLAGS)
 endif
+
+all: grease_echo libgrease.a-server libgrease.so.1
 
 $(OUTPUT_DIR)/%.o: %.cc
 	$(CXX) $(CXXFLAGS) $(CFLAGS) -c $< -o $@
@@ -79,27 +83,27 @@ getversion:
 
 # -Wl,-z,defs 
 libgrease.so.1: CFLAGS += -shared -Wl,-soname,libgrease.so.1  -Wl,--no-as-needed -ldl
-libgrease.so.1: getversion $(OBJS)
+libgrease.so.1: getversion $(OBJS) ${DEPS_LIB_DIR}
 	$(CXX) $(CFLAGS)  -o $@ $(OBJS) deps/build/lib/libuv.a deps/build/lib/libTW.a $(LDFLAGS) 
 
 # -g -O0
 # -DERRCMN_DEBUG_BUILD  -Wl,--whole-archive -ldl -Wl,--no-whole-archive -Wl,--no-undefined -Wl,-Bstatic -ldl -Wl,-Bdynamic -Wl,--whole-archive -Wl,--no-whole-archive
 #  -Wl,-z,defs (to test for missing defs)
 libgrease.so.1-debug: CFLAGS += -DERRCMN_DEBUG_BUILD -g -O0 -shared -Wl,-soname,libgrease.so.1 -Wl,--no-as-needed -ldl
-libgrease.so.1-debug: getversion $(OBJS)
+libgrease.so.1-debug: getversion $(OBJS) ${DEPS_LIB_DIR}
 	$(CXX) $(CFLAGS) -o $@ $(OBJS) deps/build/lib/libuv.a deps/build/lib/libTW.a $(LDFLAGS)  
 
 
 libgrease.a: CFLAGS += -static -DGREASE_LIB
-libgrease.a: getversion $(OBJS)
+libgrease.a: getversion $(OBJS) ${DEPS_LIB_DIR}
 	$(AR) rcs $@ $(OBJS)
 
 libgrease.a-server-debug: CFLAGS += -DERRCMN_DEBUG_BUILD -g -O0 -DGREASE_IS_LOCAL -static -DGREASE_LIB 
-libgrease.a-server-debug: getversion $(OBJS) deps/build/lib/libuv.a deps/build/lib/libTW.a
+libgrease.a-server-debug: getversion $(OBJS) deps/build/lib/libuv.a deps/build/lib/libTW.a libgrease.a
 	$(AR) rcs libgrease.a $(OBJS)
 
 libgrease.a-server: CFLAGS += -DGREASE_IS_LOCAL -static -DGREASE_LIB 
-libgrease.a-server: getversion $(OBJS)
+libgrease.a-server: getversion $(OBJS) libgrease.a
 	$(AR) rcs libgrease.a $(OBJS) 
 
 
@@ -108,19 +112,29 @@ standalone_test_logsink: getversion standalone_test_logsink.o libgrease.a
 	$(CXX) $(CXXFLAGS) $(CFLAGS) libgrease.a deps/build/lib/libuv.a deps/build/lib/libTW.a $(LDFLAGS) -lpthread -pthread  -o $@ 
 
 grease_echo: CFLAGS+= -DGREASE_LIB -I./deps/$(LIBUVDIR)/include -I./deps/twlib/include
+grease_echo: ${DEPS_LIB_DIR}
 grease_echo: $(OUTPUT_DIR)/grease_client.o $(OUTPUT_DIR)/grease_echo.o
 	$(CXX) $(CXXFLAGS) $(CFLAGS) $^ -ldl -o $@ 
 
 
-install: tw_lib $(EXTRA_TARGET)
-	./install-sh $(TWSOVERSION) $(INSTALLPREFIX)
-	ln -sf $(INSTALLPREFIX)/lib/$(TWSONAME) $(INSTALLPREFIX)/lib/$(TWSOVERSION) && \
-	ln -sf $(INSTALLPREFIX)/lib/$(TWSONAME) $(INSTALLPREFIX)/lib/$(TWSOLIBNAME)
+#install: tw_lib $(EXTRA_TARGET)
+#	./install-sh $(TWSOVERSION) $(INSTALLPREFIX)
+#	ln -sf $(INSTALLPREFIX)/lib/$(TWSONAME) $(INSTALLPREFIX)/lib/$(TWSOVERSION) && \
+#	ln -sf $(INSTALLPREFIX)/lib/$(TWSONAME) $(INSTALLPREFIX)/lib/$(TWSOLIBNAME)
 
-all: grease_echo libgrease.a-server libgrease.so.1
+install:
+	install -d $(DESTDIR)$(PREFIX)/lib/
+	install -m 644 libgrease.so.1 $(DESTDIR)$(PREFIX)/lib/
+	install -m 644 ${DEPS_LIB_DIR}/*.so* $(DESTDIR)$(PREFIX)/lib/
+	install -d $(DESTDIR)$(PREFIX)/include/
+	install -m 644 grease_lib.h $(DESTDIR)$(PREFIX)/include/
 
+${DEPS_LIB_DIR}:
+	echo ${ARCH}
+	cd deps && ./install-deps.sh
 
 clean: 
+	echo "make clean..."
 	-rm -rf $(OUTPUT_DIR)/*.o $(OUTPUT_DIR)/*.obj $(OUTPUT_DIR)/*.rpo $(OUTPUT_DIR)/*.idb $(OUTPUT_DIR)/*.lib $(OUTPUT_DIR)/*.exe $(OUTPUT_DIR)/*.a $(OUTPUT_DIR)/*~ $(OUTPUT_DIR)/core
 	-rm -rf Debug
 	-rm -f $(TWSOLIBNAME) $(TWSONAME) $(TWSOVERSION)

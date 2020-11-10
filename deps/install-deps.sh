@@ -36,6 +36,8 @@ pushd $GPERF_DIR
 touch $LOG
 #make clean
 echo "Echo building dependencies..." >> $LOG
+echo "CONFIG_OPTIONS=${CONFIG_OPTIONS}" >> $LOG
+echo "DEPS_DIR=${DEPS_DIR}" >> $LOG
 ./configure $CONFIG_OPTIONS --prefix=${DEPS_DIR}/build --enable-frame-pointers --with-pic 2>&1 >> $LOG || echo "Failed in configure for gperftools" >> $LOG
 make -j4 2>&1 >> $LOG || echo "Failed to compile gperftools" >> $LOG
 make install 2>&1 >> $LOG || echo "Failed to install gperftools to: $DEPS_DIR/build" >> $LOG
