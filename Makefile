@@ -130,8 +130,7 @@ install:
 	install -m 644 grease_lib.h $(DESTDIR)$(PREFIX)/include/
 
 ${DEPS_LIB_DIR}:
-	echo ${ARCH}
-	cd deps && ./install-deps.sh
+	cd deps && CONFIG_OPTIONS="CFLAGS= LDFLAGS=" ./install-deps.sh
 
 clean: 
 	echo "make clean..."
