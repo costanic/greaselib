@@ -119,11 +119,11 @@ grease_echo: $(OUTPUT_DIR)/grease_client.o $(OUTPUT_DIR)/grease_echo.o
 #	ln -sf $(INSTALLPREFIX)/lib/$(TWSONAME) $(INSTALLPREFIX)/lib/$(TWSOLIBNAME)
 
 install:
-	install -d $(DESTDIR)$(PREFIX)/lib/
-	install -m 644 libgrease.so.1 $(DESTDIR)$(PREFIX)/lib/
-	install -m 644 $(DEPS_LIBS_DIR)/*.so* $(DESTDIR)$(PREFIX)/lib/
-	install -d $(DESTDIR)$(PREFIX)/include/
-	install -m 644 grease_lib.h $(DESTDIR)$(PREFIX)/include/
+	install -d $(DESTDIR)$(prefix)/lib/
+	install -m 644 libgrease.so.1 $(DESTDIR)$(prefix)/lib/
+	install -m 644 $(DEPS_LIBS_DIR)/*.so* $(DESTDIR)$(prefix)/lib/
+	install -d $(DESTDIR)$(prefix)/include/grease
+	install -m 644 grease_lib.h $(DESTDIR)$(prefix)/include/grease/
 
 $(DEPS_LIBS):
 	cd deps && CFLAGS= LDFLAGS= ./install-deps.sh
