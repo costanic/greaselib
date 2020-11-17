@@ -119,11 +119,15 @@ grease_echo: $(OUTPUT_DIR)/grease_client.o $(OUTPUT_DIR)/grease_echo.o
 #	ln -sf $(INSTALLPREFIX)/lib/$(TWSONAME) $(INSTALLPREFIX)/lib/$(TWSOLIBNAME)
 
 install:
-	install -d $(DESTDIR)$(prefix)/lib/
+	install -d $(DESTDIR)$(prefix)/lib
 	install -m 644 libgrease.so.1 $(DESTDIR)$(prefix)/lib/
-	install -m 644 $(DEPS_LIBS_DIR)/*.so* $(DESTDIR)$(prefix)/lib/
+	install -m 644 $(DEPS_LIBS_DIR)/libtcmalloc_minimal.so* $(DESTDIR)$(prefix)/lib/
 	install -d $(DESTDIR)$(prefix)/include/grease
 	install -m 644 grease_lib.h $(DESTDIR)$(prefix)/include/grease/
+	install -m 644 grease_client.h $(DESTDIR)$(prefix)/include/grease/
+	install -m 644 grease_common_tags.h $(DESTDIR)$(prefix)/include/grease/
+	install -m 644 ./deps/$(LIBUVDIR)/include/*.h $(DESTDIR)$(prefix)/include/grease/
+	install -m 644 ./deps/build/include/gperftools/tcmalloc.h $(DESTDIR)$(prefix)/include/grease/
 
 $(DEPS_LIBS):
 	cd deps && CFLAGS= LDFLAGS= ./install-deps.sh
