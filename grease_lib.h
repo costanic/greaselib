@@ -39,8 +39,8 @@
 #ifndef GreaseLib_H_
 #define GreaseLib_H_
 #include "grease_client.h"
-#include <uv.h>
-#include <gperftools/tcmalloc.h>
+#include "uv.h"
+//#include "tcmalloc.h"
 #include <stdint.h>
 
 // typically defined in <linux/limits.h>
