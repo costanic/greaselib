@@ -121,7 +121,7 @@ grease_echo: $(OUTPUT_DIR)/grease_client.o $(OUTPUT_DIR)/grease_echo.o
 install:
 	install -d $(DESTDIR)$(prefix)/lib
 	install -m 644 libgrease.so.1 $(DESTDIR)$(prefix)/lib/
-	install -m 644 $(DEPS_LIBS_DIR)/libtcmalloc_minimal.so* $(DESTDIR)$(prefix)/lib/
+	install -m 644 $(DEPS_LIBS_DIR)/libtcmalloc_minimal.so.4.2.6 $(DESTDIR)$(prefix)/lib/
 	install -d $(DESTDIR)$(prefix)/include/grease
 	install -m 644 grease_lib.h $(DESTDIR)$(prefix)/include/grease/
 	install -m 644 grease_client.h $(DESTDIR)$(prefix)/include/grease/
