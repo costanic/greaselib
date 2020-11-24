@@ -2,13 +2,10 @@
 cmake_minimum_required(VERSION 3.13.4)
 project (grease LANGUAGES C CXX)
 
-set (GREASE_VERSION_MAJOR 0)
-set (GREASE_VERSION_MINOR 1)
+set (GREASE_VERSION_MAJOR 1)
+set (GREASE_VERSION_MINOR 0)
 set (GREASE_VERSION_PATCH 0)
 set (GREASE_VERSION_STRING "${GREASE_VERSION_MAJOR}.${GREASE_VERSION_MINOR}.${GREASE_VERSION_PATCH}")
-
-option(BUILD_SHARED_LIBS "Build libgrease as a shared library" OFF)
-option(GREASE_STATIC_LIB_NAME "base name of static library output" grease)
 
 #
 # Build library
@@ -25,17 +22,42 @@ set(SRCS_CXX
   grease_lib.cc
   )
 
-add_library(grease ${SRCS_C} ${SRCS_CXX})
-target_compile_features(grease PUBLIC cxx_std_11)
-
-if(NOT BUILD_SHARED_LIBS)
-  set_target_properties(grease
-	  PROPERTIES OUTPUT_NAME ${GREASE_STATIC_LIB_NAME}
+set(LIBUV_DIR ${CMAKE_CURRENT_SOURCE_DIR}/deps/libuv-v1.10.1)
+set(LIBUV_HEADER_FILES
+  ${LIBUV_DIR}/include/uv-errno.h
+  ${LIBUV_DIR}/include/uv-linux.h
+  ${LIBUV_DIR}/include/uv-threadpool.h
+  ${LIBUV_DIR}/include/uv-version.h
+  ${LIBUV_DIR}/include/uv.h
   )
-endif()
+
+set(INSTALL_HEADER_FILES
+  grease_lib.h
+  grease_client.h
+  grease_common_tags.h
+  deps/build/include/google/tcmalloc.h
+  ${LIBUV_HEADER_FILES}
+  )
+
+add_custom_target(version.h
+  COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/update_version.sh
+  )
+
+add_custom_target(depslibs
+  COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/deps/install-deps.sh
+  )
+
+add_library(grease SHARED ${SRCS_C} ${SRCS_CXX})
+add_dependencies(grease version.h depslibs)
+target_compile_features(grease PUBLIC cxx_std_11)
+target_compile_options(grease PUBLIC -Wall -Wextra -Wno-error=format-security)
+target_compile_definitions(grease PUBLIC GREASE_LIB)
 
 target_include_directories(grease PUBLIC
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<BUILD_INTERFACE:${LIBUV_DIR}/include>
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/deps/build/include>
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/deps/twlib/include>
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/deps/gperftools-2.4/src>
   $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/include>
   $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
   )
@@ -45,19 +67,19 @@ target_include_directories(grease PUBLIC
 #
 include(GNUInstallDirs)
 
-install(
-  TARGETS grease
-  EXPORT greaseTargets
-  RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
-  LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
-  ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+set_target_properties(grease PROPERTIES
+  PUBLIC_HEADER "${INSTALL_HEADER_FILES}"
+  VERSION ${GREASE_VERSION_STRING}
+  SOVERSION ${GREASE_VERSION_MAJOR}
   )
 
 install(
-  DIRECTORY grease/
-  DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/grease
-  FILES
-    include/grease_lib.h
+  TARGETS grease
+  EXPORT greaseTargets
+  PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/grease
+  RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
+  LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+  ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
   )
 
 #
@@ -84,20 +106,20 @@ write_basic_package_version_file(
 configure_package_config_file(
   ${CMAKE_CURRENT_LIST_DIR}/CMake/greaseConfig.cmake.in
   ${CMAKE_CURRENT_BINARY_DIR}/greaseConfig.cmake
-  INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake
+  INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/grease/cmake
   )
 
 install(
   FILES
     ${CMAKE_CURRENT_BINARY_DIR}/greaseConfig.cmake
     ${CMAKE_CURRENT_BINARY_DIR}/greaseConfigVersion.cmake
-  DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake
+  DESTINATION ${CMAKE_INSTALL_LIBDIR}/grease/cmake
   )
 
 # Configure 'greaseTargets.cmake' for a build tree
-#export(TARGETS grease
-#  FILE ${PROJECT_BINARY_DIR}/greaseTargets.cmake
-#  )
+export(TARGETS grease
+	FILE ${CMAKE_CURRENT_BINARY_DIR}/greaseTargets.cmake
+  )
 
 # Configure and install 'greaseConfig.cmake' for an install tree
 #set(CONFIG_DIR_CONFIG ${INSTALL_CMAKE_DIR})
