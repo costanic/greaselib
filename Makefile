@@ -19,18 +19,14 @@ ALLOBJS= $($<:%.cpp=%.o)
 
 DEBUG_OPTIONS=-rdynamic -D_TW_TASK_DEBUG_THREADS_ -DLOGGER_HEAVY_DEBUG  -D__DEBUG -D_TW_DEBUG 
 #-D_TW_BUFBLK_DEBUG_STACK_
-CFLAGS= $(GLIBCFLAG) -I./include   -fPIC -I./deps/$(LIBUVDIR)/include -I./deps/build/include  -L./deps/build/lib -DGREASE_LIB  -Wno-error=format-security
+CFLAGS= $(GLIBCFLAG) -I./include   -fPIC -I./deps/$(LIBUVDIR)/include -I./deps/build/include -I./deps/twlib/include -L./deps/build/lib -DGREASE_LIB  -Wno-error=format-security
 
 DEBUG_CFLAGS= -g -DERRCMN_DEBUG_BUILD $(DEBUG_OPTIONS)
 
 ROOT_DIR=.
 OUTPUT_DIR=.
 
-
-
 EXTRA_TARGET=
-
-CFLAGS+= -fPIC
 
 GLIBCFLAG=-D_USING_GLIBC_
 LD_TEST_FLAGS= -lgtest
@@ -106,12 +102,11 @@ libgrease.a-server: CFLAGS += -DGREASE_IS_LOCAL -static -DGREASE_LIB
 libgrease.a-server: libgrease.a
 	$(AR) rcs libgrease.a
 
-standalone_test_logsink: CFLAGS+= -DGREASE_LIB -I./deps/$(LIBUVDIR)/include -I./deps/twlib/include
 standalone_test_logsink: getversion standalone_test_logsink.o libgrease.a
 	$(CXX) $(CXXFLAGS) $(CFLAGS) libgrease.a $(DEPS_LIBS) $(LDFLAGS) -lpthread -pthread  -o $@
 
 grease_echo: $(OUTPUT_DIR)/grease_client.o $(OUTPUT_DIR)/grease_echo.o
-	$(CXX) $(CXXFLAGS) $(CFLAGS) -I./deps/twlib/include $^ -ldl -o $@
+	$(CXX) $(CXXFLAGS) $(CFLAGS) $^ -ldl -o $@
 
 #install: tw_lib $(EXTRA_TARGET)
 #	./install-sh $(TWSOVERSION) $(INSTALLPREFIX)
