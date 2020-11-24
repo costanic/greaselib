@@ -26,6 +26,7 @@ set(SRCS_CXX
   )
 
 add_library(grease ${SRCS_C} ${SRCS_CXX})
+target_compile_features(grease PUBLIC cxx_std_11)
 
 if(NOT BUILD_SHARED_LIBS)
   set_target_properties(grease
@@ -36,7 +37,7 @@ endif()
 target_include_directories(grease PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/include>
-  $<INSTALL_INTERFACE:${INSTALL_INCLUDE_DIR}>
+  $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
   )
 
 #
@@ -45,17 +46,18 @@ target_include_directories(grease PUBLIC
 include(GNUInstallDirs)
 
 install(
-  FILES
-    include/grease_lib.h
-  DESTINATION include COMPONENT Development
-  )
-
-install(
   TARGETS grease
   EXPORT greaseTargets
   RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
   LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
   ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+  )
+
+install(
+  DIRECTORY grease/
+  DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/grease
+  FILES
+    include/grease_lib.h
   )
 
 #
@@ -67,20 +69,30 @@ install(
 #endif()
 
 #
+# ConfigVersion file
 # Generate 'greaseConfig.cmake', 'greaseConfigVersion.cmake' and 'greaseTargets.cmake'
+# so other projects can include require libgrease from their own cmake files.
 #
-#include(CMakePackageConfigHelpers)
+include(CMakePackageConfigHelpers)
 
-# Configure 'greaseConfig.cmake' for a build tree
-#set(CONFIG_DIR_CONFIG ${PROJECT_BINARY_DIR})
-#set(config_file ${PROJECT_BINARY_DIR}/greaseConfig.cmake)
-#configure_package_config_file(
-#  greaseConfig.cmake.in
-#  ${config_file}
-#  INSTALL_DESTINATION ${PROJECT_BINARY_DIR}
-#  PATH_VARS CONFIG_DIR_CONFIG
-#  NO_CHECK_REQUIRED_COMPONENTS_MACRO
-#  )
+write_basic_package_version_file(
+  ${CMAKE_CURRENT_BINARY_DIR}/greaseConfigVersion.cmake
+  VERSION ${GREASE_VERSION_STRING}
+  COMPATIBILITY AnyNewerVersion
+)
+
+configure_package_config_file(
+  ${CMAKE_CURRENT_LIST_DIR}/CMake/greaseConfig.cmake.in
+  ${CMAKE_CURRENT_BINARY_DIR}/greaseConfig.cmake
+  INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake
+  )
+
+install(
+  FILES
+    ${CMAKE_CURRENT_BINARY_DIR}/greaseConfig.cmake
+    ${CMAKE_CURRENT_BINARY_DIR}/greaseConfigVersion.cmake
+  DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake
+  )
 
 # Configure 'greaseTargets.cmake' for a build tree
 #export(TARGETS grease
@@ -105,20 +117,7 @@ install(
 # Configure and install 'greaseTargets.cmake' for an install tree
 #install(EXPORT greaseTargets
 #  FILE greaseTargets.cmake
-#  DESTINATION ${INSTALL_CMAKE_DIR}
+#  DESTINATION ${CMAKE_INSTALL_DIR}/cmake
 #  COMPONENT Development
 #  )
-#
-## Configure 'greaseConfigVersion.cmake' for a build tree
-#set(config_version_file ${PROJECT_BINARY_DIR}/greaseConfigVersion.cmake)
-#write_basic_package_version_file(
-#    ${config_version_file}
-#    VERSION ${YAML_VERSION_STRING}
-#    COMPATIBILITY AnyNewerVersion
-#)
-## ... and install for an install tree
-#install(
-#  FILES ${config_version_file}
-#  DESTINATION ${INSTALL_CMAKE_DIR} COMPONENT Development
-#  )
-#
+
